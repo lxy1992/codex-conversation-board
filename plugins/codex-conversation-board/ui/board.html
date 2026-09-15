@@ -1,0 +1,2560 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Codex 对话看板</title>
+    <style>
+      :root {
+        --bg: #f4f5f7;
+        --surface: #ffffff;
+        --surface-2: #f8fafc;
+        --text: #172b4d;
+        --muted: #64748b;
+        --line: #dfe1e6;
+        --blue: #0c66e4;
+        --blue-soft: #e9f2ff;
+        --shadow: 0 1px 2px rgb(9 30 66 / 0.15), 0 0 1px rgb(9 30 66 / 0.22);
+        --card-shadow: 0 1px 1px rgb(9 30 66 / 0.12), 0 0 1px rgb(9 30 66 / 0.16);
+        --radius: 12px;
+        font-family:
+          Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", sans-serif;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #101214;
+          --surface: #1d2125;
+          --surface-2: #22272b;
+          --text: #f1f2f4;
+          --muted: #9fadbc;
+          --line: #3d444c;
+          --blue: #579dff;
+          --blue-soft: #1c2b41;
+          --shadow: 0 1px 2px rgb(0 0 0 / 0.45), 0 0 1px rgb(255 255 255 / 0.08);
+          --card-shadow: 0 1px 2px rgb(0 0 0 / 0.34);
+        }
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        width: 100%;
+        min-width: 0;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      button, input, select { font: inherit; }
+
+      button:focus-visible,
+      input:focus-visible,
+      select:focus-visible,
+      .card:focus-visible {
+        outline: 2px solid var(--blue);
+        outline-offset: 2px;
+      }
+
+      .app {
+        display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr);
+        height: 100vh;
+        min-height: 440px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--line);
+        background: color-mix(in srgb, var(--surface) 93%, transparent);
+      }
+
+      .brand {
+        display: flex;
+        flex: 0 0 280px;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .brand-copy { min-width: 0; }
+
+      .brand-mark {
+        display: grid;
+        grid-template-columns: repeat(3, 4px);
+        align-items: end;
+        gap: 3px;
+        width: 30px;
+        height: 30px;
+        padding: 7px;
+        border-radius: 9px;
+        background: #2563eb;
+        box-shadow: 0 3px 10px rgb(37 99 235 / 0.24);
+      }
+
+      .brand-mark i {
+        display: block;
+        width: 4px;
+        border-radius: 3px;
+        background: #fff;
+      }
+
+      .brand-mark i:nth-child(1) { height: 15px; opacity: 0.78; }
+      .brand-mark i:nth-child(2) { height: 10px; }
+      .brand-mark i:nth-child(3) { height: 13px; opacity: 0.68; }
+
+      .brand-copy h1 {
+        margin: 0;
+        font-size: 15px;
+        line-height: 1.2;
+        letter-spacing: -0.01em;
+      }
+
+      .brand-copy p {
+        margin: 2px 0 0;
+        overflow: hidden;
+        color: var(--muted);
+        font-size: 11px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .source-tabs {
+        display: inline-flex;
+        gap: 3px;
+        padding: 3px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--surface-2);
+      }
+
+      .source-tab {
+        min-height: 28px;
+        padding: 0 11px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 650;
+        cursor: pointer;
+      }
+
+      .source-tab:hover { color: var(--text); }
+      .source-tab[aria-selected="true"] {
+        background: var(--surface);
+        color: var(--blue);
+        box-shadow: var(--card-shadow);
+      }
+
+      .toolbar {
+        display: flex;
+        flex: 1;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .field {
+        position: relative;
+        display: flex;
+        align-items: center;
+        min-width: 0;
+      }
+
+      .field svg {
+        position: absolute;
+        left: 10px;
+        width: 15px;
+        height: 15px;
+        color: var(--muted);
+        pointer-events: none;
+      }
+
+      .search {
+        width: min(270px, 25vw);
+        min-width: 140px;
+        height: 34px;
+        padding: 0 12px 0 32px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text);
+      }
+
+      .project-select {
+        width: min(220px, 22vw);
+        min-width: 130px;
+        height: 34px;
+        padding: 0 28px 0 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text);
+      }
+
+      .icon-button {
+        display: inline-grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--muted);
+        cursor: pointer;
+      }
+
+      .icon-button:hover { color: var(--blue); background: var(--blue-soft); }
+      .icon-button:disabled { cursor: wait; opacity: 0.5; }
+      .icon-button svg { width: 16px; height: 16px; }
+      .spinning svg { animation: spin 0.8s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      .meta-strip {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 34px;
+        padding: 7px 16px;
+        border-bottom: 1px solid var(--line);
+        background: var(--surface);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .meta-strip strong { color: var(--text); font-weight: 650; }
+
+      .meta-strip .status {
+        margin-left: auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .status[data-kind="error"] { color: #c9372c; }
+      .status[data-kind="success"] { color: #1f845a; }
+
+      .board-shell {
+        min-width: 0;
+        min-height: 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 12px 14px 16px;
+      }
+
+      .board {
+        display: grid;
+        grid-template-columns: repeat(var(--column-count, 6), minmax(264px, 1fr));
+        gap: 10px;
+        min-width: 0;
+        height: 100%;
+      }
+
+      .column {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        min-width: 0;
+        min-height: 0;
+        border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+        border-radius: var(--radius);
+        background: var(--surface-2);
+      }
+
+      .column.drag-over {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--blue) 18%, transparent);
+      }
+
+      .column-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 11px 8px;
+      }
+
+      .column-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--column-color);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--column-color) 15%, transparent);
+      }
+
+      .column-title {
+        flex: 1;
+        margin: 0;
+        font-size: 12px;
+        font-weight: 720;
+        letter-spacing: 0.02em;
+      }
+
+      .count {
+        min-width: 22px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--line) 55%, transparent);
+        color: var(--muted);
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+        text-align: center;
+      }
+
+      .cards {
+        min-height: 0;
+        padding: 2px 8px 10px;
+        overflow-y: auto;
+        scrollbar-gutter: stable;
+      }
+
+      .cards:empty::after {
+        content: "拖到这里";
+        display: grid;
+        place-items: center;
+        min-height: 76px;
+        border: 1px dashed var(--line);
+        border-radius: 9px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .lazy-done {
+        display: grid;
+        min-height: 132px;
+        place-items: center;
+        padding: 18px 12px;
+        border: 1px dashed var(--line);
+        border-radius: 9px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .lazy-done p {
+        margin: 0 0 10px;
+        font-size: 11px;
+        line-height: 1.45;
+      }
+
+      .lazy-done button {
+        min-height: 30px;
+        padding: 0 11px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--surface-2);
+        color: var(--text);
+        font-size: 11.5px;
+        cursor: pointer;
+      }
+
+      .lazy-done button:hover { border-color: var(--blue); color: var(--blue); }
+      .lazy-done button:disabled { cursor: wait; opacity: 0.58; }
+
+      .lazy-column {
+        min-height: 54px;
+        padding: 8px;
+        border: 1px dashed var(--line);
+        border-radius: 8px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .lazy-column button {
+        min-height: 28px;
+        padding: 0 10px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--surface);
+        color: var(--text);
+        font-size: 11px;
+        cursor: pointer;
+      }
+
+      .lazy-column button:hover { border-color: var(--blue); color: var(--blue); }
+
+      .card {
+        position: relative;
+        margin: 0 0 8px;
+        padding: 10px 10px 9px;
+        border: 1px solid transparent;
+        border-radius: 9px;
+        background: var(--surface);
+        box-shadow: var(--card-shadow);
+        cursor: grab;
+        user-select: none;
+        transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+      }
+
+      .card:hover {
+        border-color: color-mix(in srgb, var(--blue) 55%, transparent);
+        box-shadow: 0 2px 5px rgb(9 30 66 / 0.16);
+        transform: translateY(-1px);
+      }
+
+      .card[data-activity="active"] {
+        border-color: color-mix(in srgb, #1f845a 46%, transparent);
+      }
+
+      .card[data-activity="unread"] {
+        border-color: color-mix(in srgb, #e56910 58%, transparent);
+        box-shadow: 0 2px 6px color-mix(in srgb, #e56910 16%, transparent);
+      }
+
+      .card:active { cursor: grabbing; }
+      .card.dragging { opacity: 0.38; transform: rotate(1deg); }
+      .card.saving::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--blue) 10%, transparent), transparent);
+        background-size: 200% 100%;
+        animation: shimmer 0.9s linear infinite;
+        pointer-events: none;
+      }
+      @keyframes shimmer { to { background-position: -200% 0; } }
+
+      .card-title {
+        margin: 0 0 9px;
+      }
+
+      .card-open-button {
+        display: -webkit-box;
+        width: 100%;
+        padding: 0;
+        border: 0;
+        overflow: hidden;
+        background: transparent;
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 620;
+        line-height: 1.42;
+        text-align: left;
+        text-decoration: none;
+        cursor: pointer;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 3;
+      }
+
+      .card-meta {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        color: var(--muted);
+        font-size: 10.5px;
+      }
+
+      .project-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        min-width: 0;
+        max-width: 55%;
+      }
+
+      .project-chip::before {
+        content: "";
+        flex: 0 0 auto;
+        width: 6px;
+        height: 6px;
+        border-radius: 2px;
+        background: hsl(var(--project-hue) 68% 53%);
+      }
+
+      .project-name, .branch {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .branch { flex: 1; text-align: right; }
+
+      .runtime {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 1px 5px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--line) 48%, transparent);
+        white-space: nowrap;
+      }
+
+      .runtime::before {
+        content: "";
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: #8590a2;
+      }
+
+      .runtime[data-state="active"]::before { background: #1f845a; }
+      .runtime[data-state="approval"]::before,
+      .runtime[data-state="input"]::before { background: #e56910; }
+      .runtime[data-state="error"]::before { background: #c9372c; }
+
+      .activity {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        font-weight: 650;
+        white-space: nowrap;
+      }
+
+      .activity::before {
+        content: "";
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+
+      .activity[data-state="active"] {
+        background: color-mix(in srgb, #1f845a 14%, transparent);
+        color: #1f845a;
+      }
+
+      .activity[data-state="active"]::before {
+        animation: activity-pulse 1.4s ease-in-out infinite;
+      }
+
+      .activity[data-state="unread"] {
+        background: color-mix(in srgb, #e56910 16%, transparent);
+        color: #c25100;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .activity[data-state="active"] { color: #7ee2b8; }
+        .activity[data-state="unread"] { color: #f8b36b; }
+      }
+
+      @keyframes activity-pulse {
+        0%, 100% { opacity: 0.35; transform: scale(0.8); }
+        50% { opacity: 1; transform: scale(1.2); }
+      }
+
+      .card-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 7px;
+      }
+
+      .time {
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .card-move-button {
+        flex: 0 0 auto;
+        min-height: 24px;
+        padding: 0 7px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--surface-2);
+        color: var(--muted);
+        font-size: 10.5px;
+        cursor: pointer;
+      }
+
+      .card-move-button:hover,
+      .card-move-button[aria-expanded="true"] {
+        border-color: color-mix(in srgb, var(--blue) 55%, var(--line));
+        background: var(--blue-soft);
+        color: var(--blue);
+      }
+
+      .card-move-button:disabled {
+        cursor: wait;
+        opacity: 0.55;
+      }
+
+      .status-menu {
+        position: fixed;
+        z-index: 30;
+        min-width: 148px;
+        padding: 5px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--surface);
+        box-shadow: 0 8px 24px rgb(9 30 66 / 0.24);
+      }
+
+      .status-menu[hidden] { display: none; }
+
+      .status-menu button {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        min-height: 32px;
+        padding: 0 9px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--text);
+        font-size: 12px;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .status-menu button:hover,
+      .status-menu button:focus-visible {
+        background: var(--blue-soft);
+        color: var(--blue);
+      }
+
+      .status-menu-dot {
+        flex: 0 0 auto;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--status-color);
+      }
+
+      .settings-dialog {
+        position: fixed;
+        inset: 0;
+        z-index: 80;
+        display: grid;
+        place-items: center;
+        padding: 22px;
+      }
+
+      .settings-dialog[hidden] { display: none; }
+
+      .settings-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgb(9 30 66 / 0.54);
+        backdrop-filter: blur(3px);
+      }
+
+      .settings-panel {
+        position: relative;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        width: min(760px, 100%);
+        max-height: min(720px, calc(100vh - 44px));
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--surface);
+        box-shadow: 0 20px 60px rgb(9 30 66 / 0.34);
+      }
+
+      .settings-header,
+      .settings-footer {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 16px;
+      }
+
+      .settings-header {
+        border-bottom: 1px solid var(--line);
+      }
+
+      .settings-header-copy { min-width: 0; flex: 1; }
+      .settings-header h2 { margin: 0; font-size: 16px; }
+      .settings-header p {
+        margin: 3px 0 0;
+        color: var(--muted);
+        font-size: 11.5px;
+      }
+
+      .settings-body {
+        min-height: 0;
+        overflow: auto;
+        padding: 14px 16px 16px;
+      }
+
+      .settings-help {
+        margin: 0 0 11px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .settings-columns-list { display: grid; gap: 8px; }
+
+      .settings-column-row {
+        display: grid;
+        grid-template-columns: 26px 34px minmax(110px, 0.8fr) minmax(160px, 1.3fr) auto;
+        align-items: center;
+        gap: 8px;
+        padding: 9px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--surface-2);
+      }
+
+      .settings-column-row.dragging { opacity: 0.5; }
+      .settings-column-row.drag-over { border-color: var(--blue); }
+
+      .settings-drag-handle {
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        cursor: grab;
+        font-size: 16px;
+        letter-spacing: -4px;
+      }
+
+      .settings-color {
+        width: 30px;
+        height: 30px;
+        padding: 2px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--surface);
+        cursor: pointer;
+      }
+
+      .settings-input {
+        width: 100%;
+        min-width: 0;
+        height: 32px;
+        padding: 0 9px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--surface);
+        color: var(--text);
+        font-size: 12px;
+      }
+
+      .settings-row-actions { display: inline-flex; gap: 4px; }
+
+      .settings-row-button {
+        display: inline-grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--surface);
+        color: var(--muted);
+        cursor: pointer;
+      }
+
+      .settings-row-button:hover:not(:disabled) { color: var(--blue); border-color: var(--blue); }
+      .settings-row-button[data-action="delete"]:hover:not(:disabled) { color: #c9372c; border-color: #c9372c; }
+      .settings-row-button:disabled { cursor: not-allowed; opacity: 0.35; }
+
+      .settings-add-button {
+        min-height: 34px;
+        margin-top: 10px;
+        padding: 0 12px;
+        border: 1px dashed color-mix(in srgb, var(--blue) 60%, var(--line));
+        border-radius: 8px;
+        background: var(--blue-soft);
+        color: var(--blue);
+        cursor: pointer;
+      }
+
+      .settings-migration {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-top: 12px;
+        padding: 10px 11px;
+        border-radius: 9px;
+        background: color-mix(in srgb, #e56910 11%, var(--surface));
+        color: var(--text);
+        font-size: 12px;
+      }
+
+      .settings-migration[hidden] { display: none; }
+      .settings-migration span { flex: 1; }
+      .settings-migration select {
+        min-width: 120px;
+        height: 30px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--surface);
+        color: var(--text);
+      }
+
+      .settings-error {
+        min-height: 17px;
+        margin: 8px 0 0;
+        color: #c9372c;
+        font-size: 11.5px;
+      }
+
+      .settings-footer {
+        justify-content: flex-end;
+        border-top: 1px solid var(--line);
+      }
+
+      .dialog-button {
+        min-height: 34px;
+        padding: 0 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .dialog-button.primary {
+        border-color: var(--blue);
+        background: var(--blue);
+        color: white;
+      }
+
+      .dialog-button:disabled { cursor: wait; opacity: 0.55; }
+
+      .loading {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        z-index: 5;
+        background: var(--bg);
+      }
+
+      .loading[hidden] { display: none; }
+
+      .loading-box {
+        display: grid;
+        justify-items: center;
+        gap: 12px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .loader {
+        width: 24px;
+        height: 24px;
+        border: 3px solid var(--line);
+        border-top-color: var(--blue);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+
+      .error-panel {
+        max-width: 420px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--surface);
+        color: var(--text);
+        box-shadow: var(--shadow);
+        text-align: center;
+      }
+
+      .error-panel p { color: var(--muted); line-height: 1.5; }
+      .retry-button {
+        min-height: 34px;
+        padding: 0 13px;
+        border: 0;
+        border-radius: 8px;
+        background: var(--blue);
+        color: white;
+        cursor: pointer;
+      }
+
+      @media (max-width: 720px) {
+        .app { grid-template-rows: auto auto minmax(0, 1fr); }
+        .topbar { align-items: flex-start; flex-wrap: wrap; }
+        .brand { flex: 1; }
+        .source-tabs { order: 2; }
+        .toolbar { order: 2; flex-basis: 100%; justify-content: stretch; }
+        .search, .project-select { width: 100%; }
+        .field { flex: 1; }
+        .brand-copy p { display: none; }
+        .meta-strip { padding-inline: 12px; }
+        .meta-strip .hint { display: none; }
+        .board-shell { padding-inline: 10px; }
+        .settings-dialog { padding: 8px; }
+        .settings-panel { max-height: calc(100vh - 16px); }
+        .settings-column-row {
+          grid-template-columns: 24px 32px minmax(100px, 1fr) auto;
+        }
+        .settings-description { grid-column: 3 / -1; }
+        .settings-migration { align-items: stretch; flex-direction: column; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app" aria-label="对话看板">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="brand-copy">
+            <h1>对话看板</h1>
+            <p id="brandSubtitle">按项目和状态整理 Codex 任务</p>
+          </span>
+        </div>
+
+        <nav class="source-tabs" role="tablist" aria-label="对话来源">
+          <button class="source-tab" type="button" role="tab" data-source="codex" aria-selected="true">Codex</button>
+          <button class="source-tab" type="button" role="tab" data-source="chatgpt" aria-selected="false">ChatGPT</button>
+          <button class="source-tab" type="button" role="tab" data-source="claude" aria-selected="false">Claude</button>
+        </nav>
+
+        <div class="toolbar">
+          <label class="field" aria-label="搜索对话">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.4-3.4"/></svg>
+            <input id="search" class="search" type="search" placeholder="搜索对话或分支" autocomplete="off" />
+          </label>
+          <select id="projectSelect" class="project-select" aria-label="筛选项目">
+            <option value="">全部项目</option>
+          </select>
+          <button id="refreshButton" class="icon-button" type="button" title="刷新对话" aria-label="刷新对话">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+          </button>
+          <button id="settingsButton" class="icon-button" type="button" title="设置状态与泳道顺序" aria-label="设置状态与泳道顺序">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg>
+          </button>
+          <button id="fullscreenButton" class="icon-button" type="button" title="全屏打开" aria-label="全屏打开">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <section class="meta-strip" aria-live="polite">
+        <span><strong id="visibleCount">0</strong> 个对话</span>
+        <span><strong id="projectCount">0</strong> 个项目</span>
+        <span id="activeMetric"><strong id="activeCount">0</strong> 对话中</span>
+        <span id="unreadMetric"><strong id="unreadCount">0</strong> 新回复</span>
+        <span id="sourceHealth" class="hint" hidden></span>
+        <span id="boardHint" class="hint">拖动或使用卡片按钮改变状态 · 点击卡片返回原对话</span>
+        <span id="status" class="status"></span>
+      </section>
+
+      <section class="board-shell">
+        <div id="board" class="board" aria-label="看板列"></div>
+      </section>
+
+      <div id="statusMenu" class="status-menu" role="menu" aria-label="移动到其他状态" hidden></div>
+
+      <div id="columnSettingsDialog" class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
+        <div class="settings-backdrop" data-action="close-settings"></div>
+        <section class="settings-panel">
+          <header class="settings-header">
+            <div class="settings-header-copy">
+              <h2 id="settingsTitle">状态与泳道顺序</h2>
+              <p id="settingsSourceLabel">只修改当前 Codex 看板</p>
+            </div>
+            <button id="settingsCloseButton" class="icon-button" type="button" aria-label="关闭设置">×</button>
+          </header>
+          <div class="settings-body">
+            <p class="settings-help">拖动或使用箭头调整顺序。收件箱和完成承担系统功能，可以改名和换位置，但不能删除。</p>
+            <div id="settingsColumnsList" class="settings-columns-list"></div>
+            <button id="addColumnButton" class="settings-add-button" type="button">＋ 添加状态</button>
+            <div id="settingsMigration" class="settings-migration" hidden>
+              <span id="settingsMigrationText"></span>
+              <label>迁移到 <select id="settingsMigrationTarget" aria-label="被删除状态的卡片迁移目标"></select></label>
+            </div>
+            <p id="settingsError" class="settings-error" role="alert"></p>
+          </div>
+          <footer class="settings-footer">
+            <button id="settingsCancelButton" class="dialog-button" type="button">取消</button>
+            <button id="settingsSaveButton" class="dialog-button primary" type="button">保存设置</button>
+          </footer>
+        </section>
+      </div>
+
+      <div id="loading" class="loading">
+        <div class="loading-box"><span class="loader"></span><span id="loadingText">正在读取本机 Codex 对话…</span></div>
+      </div>
+    </main>
+
+    <script id="boardBootstrap" type="application/json">__CODEX_BOARD_BOOTSTRAP__</script>
+    <script>
+      (() => {
+        "use strict";
+
+        const COLUMN_COLORS = {
+          inbox: "#8590a2",
+          todo: "#0c66e4",
+          doing: "#6e5dc6",
+          blocked: "#c9372c",
+          review: "#e56910",
+          done: "#1f845a",
+        };
+        const REQUIRED_COLUMN_IDS = new Set(["inbox", "done"]);
+        const CUSTOM_COLUMN_COLORS = ["#2563EB", "#7C3AED", "#D97706", "#DB2777", "#0891B2", "#4F46E5"];
+        const MAX_COLUMN_COUNT = 12;
+        const ACTIVITY_SOURCE_VERSION = 2;
+        const ACTIVITY_STATES = new Set(["idle", "active", "unread"]);
+        const BOARD_SOURCES = new Set(["codex", "chatgpt", "claude"]);
+        const SOURCE_UI = Object.freeze({
+          codex: {
+            subtitle: "按项目和状态整理 Codex 任务",
+            searchPlaceholder: "搜索任务或分支",
+            hint: "拖动或使用卡片按钮改变状态 · 点击卡片返回原对话",
+            loading: "正在读取本机 Codex 对话…",
+            documentTitle: "Codex 对话看板",
+            destination: "原对话",
+            activityBadges: true,
+          },
+          chatgpt: {
+            subtitle: "单独整理 ChatGPT 对话，不与 Codex 任务混排",
+            searchPlaceholder: "搜索 ChatGPT 对话",
+            hint: "拖动或使用卡片按钮改变状态 · 点击卡片在 Codex 中打开 ChatGPT 对话",
+            loading: "正在读取本机 ChatGPT 对话目录…",
+            documentTitle: "ChatGPT 对话看板",
+            destination: "ChatGPT 对话",
+            activityBadges: false,
+          },
+          claude: {
+            subtitle: "单独整理 Claude Code 会话，不与其他来源混排",
+            searchPlaceholder: "搜索 Claude 对话或分支",
+            hint: "拖动或使用卡片按钮改变状态 · 点击卡片在 Claude 中继续会话",
+            loading: "正在读取本机 Claude Code 会话…",
+            documentTitle: "Claude 对话看板",
+            destination: "Claude 对话",
+            activityBadges: false,
+          },
+        });
+        const CARD_RENDER_LIMIT = 120;
+        const CLAUDE_AUTO_LOAD_DONE_LIMIT = 200;
+
+        const state = {
+          source: "codex",
+          sourceSnapshots: new Map(),
+          columns: [],
+          projects: [],
+          threads: [],
+          projectId: "",
+          query: "",
+          draggingId: null,
+          dragStartedAt: 0,
+          savingIds: new Set(),
+          menuThreadId: null,
+          menuAnchor: null,
+          columnCounts: {},
+          totalCount: 0,
+          generatedAt: null,
+          doneLoaded: false,
+          donePreviewMode: "today",
+          donePreviewDate: null,
+          donePreviewCount: 0,
+          sourceDiagnostics: null,
+          loadingDone: false,
+          hasSnapshot: false,
+          activityRefreshing: false,
+          activityRefreshPending: false,
+          activityRefreshPromise: null,
+          activityObservedAt: 0,
+          activitySourceVersion: 0,
+          openedReplies: new Map(),
+          expandedColumns: new Set(),
+        };
+
+        const board = document.getElementById("board");
+        const loading = document.getElementById("loading");
+        const search = document.getElementById("search");
+        const projectSelect = document.getElementById("projectSelect");
+        const refreshButton = document.getElementById("refreshButton");
+        const settingsButton = document.getElementById("settingsButton");
+        const fullscreenButton = document.getElementById("fullscreenButton");
+        const visibleCount = document.getElementById("visibleCount");
+        const projectCount = document.getElementById("projectCount");
+        const activeCount = document.getElementById("activeCount");
+        const unreadCount = document.getElementById("unreadCount");
+        const statusNode = document.getElementById("status");
+        const statusMenu = document.getElementById("statusMenu");
+        const sourceTabs = [...document.querySelectorAll(".source-tab")];
+        const brandSubtitle = document.getElementById("brandSubtitle");
+        const activeMetric = document.getElementById("activeMetric");
+        const unreadMetric = document.getElementById("unreadMetric");
+        const sourceHealth = document.getElementById("sourceHealth");
+        const boardHint = document.getElementById("boardHint");
+        const loadingText = document.getElementById("loadingText");
+        const columnSettingsDialog = document.getElementById("columnSettingsDialog");
+        const settingsSourceLabel = document.getElementById("settingsSourceLabel");
+        const settingsColumnsList = document.getElementById("settingsColumnsList");
+        const settingsMigration = document.getElementById("settingsMigration");
+        const settingsMigrationText = document.getElementById("settingsMigrationText");
+        const settingsMigrationTarget = document.getElementById("settingsMigrationTarget");
+        const settingsError = document.getElementById("settingsError");
+        const settingsCloseButton = document.getElementById("settingsCloseButton");
+        const settingsCancelButton = document.getElementById("settingsCancelButton");
+        const settingsSaveButton = document.getElementById("settingsSaveButton");
+        const addColumnButton = document.getElementById("addColumnButton");
+
+        let nextRpcId = 1;
+        const pendingRpc = new Map();
+        let mcpUiConnection = null;
+        let mcpUiConnected = false;
+        let settingsDraft = [];
+        let settingsDraggingId = null;
+        let nextCustomColumnNumber = 1;
+
+        window.addEventListener("message", (event) => {
+          if (event.source !== window.parent) return;
+          const message = event.data;
+          if (!message || message.jsonrpc !== "2.0") return;
+
+          if (message.method == null && message.id != null && pendingRpc.has(message.id)) {
+            const pending = pendingRpc.get(message.id);
+            pendingRpc.delete(message.id);
+            clearTimeout(pending.timer);
+            if (message.error) pending.reject(new Error(message.error.message || "工具调用失败"));
+            else pending.resolve(message.result);
+            return;
+          }
+
+          if (message.method === "ui/notifications/tool-result") {
+            acceptSnapshot(message.params, { persist: true });
+            return;
+          }
+
+          if (message.id != null && (message.method === "ping" || message.method === "ui/resource-teardown")) {
+            window.parent.postMessage({ jsonrpc: "2.0", id: message.id, result: {} }, "*");
+          }
+        });
+
+        function postMessageRequest(method, params, timeoutMs = 5000) {
+          return new Promise((resolve, reject) => {
+            const id = nextRpcId++;
+            const timer = setTimeout(() => {
+              pendingRpc.delete(id);
+              reject(new Error(`Codex UI 请求超时：${method}`));
+            }, timeoutMs);
+            pendingRpc.set(id, { resolve, reject, timer });
+            window.parent.postMessage(
+              {
+                jsonrpc: "2.0",
+                id,
+                method,
+                params,
+              },
+              "*",
+            );
+          });
+        }
+
+        function postMessageNotification(method, params = {}) {
+          window.parent.postMessage({ jsonrpc: "2.0", method, params }, "*");
+        }
+
+        function connectMcpApp() {
+          if (mcpUiConnected) return Promise.resolve();
+          if (window.parent === window) {
+            return Promise.reject(new Error("当前页面不是已连接的 MCP App"));
+          }
+          if (!mcpUiConnection) {
+            mcpUiConnection = postMessageRequest(
+              "ui/initialize",
+              {
+                appInfo: { name: "codex-conversation-board", version: "0.8.0" },
+                appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] },
+                protocolVersion: "2026-01-26",
+              },
+              1000,
+            )
+              .then(() => {
+                postMessageNotification("ui/notifications/initialized");
+                mcpUiConnected = true;
+              })
+              .catch((error) => {
+                mcpUiConnection = null;
+                throw error;
+              });
+          }
+          return mcpUiConnection;
+        }
+
+        function postMessageCall(name, args) {
+          return postMessageRequest("tools/call", { name, arguments: args });
+        }
+
+        async function callTool(name, args = {}) {
+          if (typeof window.__CODEX_BOARD_MOCK__ === "function") {
+            return window.__CODEX_BOARD_MOCK__(name, args);
+          }
+          if (window.__CODEX_BOARD_WEB__ && typeof window.__CODEX_BOARD_WEB__.callTool === "function") {
+            return window.__CODEX_BOARD_WEB__.callTool(name, args);
+          }
+          let bridgeError = null;
+          if (window.parent !== window) {
+            try {
+              await connectMcpApp();
+              return await postMessageCall(name, args);
+            } catch (error) {
+              bridgeError = error;
+            }
+          }
+          if (window.openai && typeof window.openai.callTool === "function") {
+            return window.openai.callTool(name, args);
+          }
+          throw bridgeError || new Error("当前页面没有连接 Codex 插件工具");
+        }
+
+        function withDeadline(promise, timeoutMs, message) {
+          let timer;
+          const deadline = new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+          });
+          return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+        }
+
+        function requestHostNavigation(url) {
+          const openExternal = typeof window.openai?.openExternal === "function"
+            ? window.openai.openExternal.bind(window.openai)
+            : typeof window.__CODEX_BOARD_HOST__?.openExternal === "function"
+              ? window.__CODEX_BOARD_HOST__.openExternal.bind(window.__CODEX_BOARD_HOST__)
+              : null;
+          if (!openExternal) return false;
+          try {
+            // 必须在原始 click 调用栈内执行；一旦先 await，Chromium 会撤销
+            // navigator.userActivation，Codex 宿主就会忽略这次深链请求。
+            openExternal({ href: url });
+            return true;
+          } catch {
+            return false;
+          }
+        }
+
+        function isBoardSnapshot(value) {
+          return Boolean(
+            value &&
+            value.ready !== false &&
+            Array.isArray(value.columns) &&
+            Array.isArray(value.threads) &&
+            value.columnCounts &&
+            typeof value.columnCounts === "object",
+          );
+        }
+
+        function isActivity(activity) {
+          return Boolean(
+            activity &&
+            ACTIVITY_STATES.has(activity.state) &&
+            typeof activity.unread === "boolean",
+          );
+        }
+
+        function idleActivity() {
+          return {
+            state: "idle",
+            label: "",
+            unread: false,
+            startedAt: null,
+            completedAt: null,
+          };
+        }
+
+        function localDateKey(value) {
+          if (arguments.length === 0) value = Date.now();
+          let timestamp;
+          if (typeof value === "number") timestamp = value < 1e12 ? value * 1000 : value;
+          else timestamp = Date.parse(value);
+          if (!Number.isFinite(timestamp)) return null;
+          const date = new Date(timestamp);
+          const year = String(date.getFullYear()).padStart(4, "0");
+          const month = String(date.getMonth() + 1).padStart(2, "0");
+          const day = String(date.getDate()).padStart(2, "0");
+          return `${year}-${month}-${day}`;
+        }
+
+        function normalizeBoardSnapshot(value, expectedSource = state.source) {
+          if (!isBoardSnapshot(value)) return null;
+          const source = BOARD_SOURCES.has(value.source) ? value.source : "codex";
+          if (source !== expectedSource) return null;
+          const previewIsCurrent = (
+            value.doneLoaded === true ||
+            value.donePreviewMode !== "today" ||
+            value.donePreviewDate === localDateKey()
+          );
+          const sourceThreads = previewIsCurrent
+            ? value.threads
+            : value.threads.filter((thread) => thread.boardStatus !== "done");
+          const hasCurrentActivities = (
+            Number(value.activitySourceVersion) === ACTIVITY_SOURCE_VERSION &&
+            sourceThreads.every((thread) => isActivity(thread?.activity))
+          );
+          return {
+            ...value,
+            source,
+            activitySourceVersion: hasCurrentActivities ? ACTIVITY_SOURCE_VERSION : 0,
+            projects: Array.isArray(value.projects) ? value.projects : [],
+            donePreviewMode: "today",
+            donePreviewDate: previewIsCurrent ? value.donePreviewDate : localDateKey(),
+            donePreviewCount: previewIsCurrent
+              ? Number(value.donePreviewCount || sourceThreads.filter((thread) => thread.boardStatus === "done").length)
+              : 0,
+            threads: sourceThreads.map((thread) => ({
+              ...thread,
+              activity: isActivity(thread?.activity) ? thread.activity : idleActivity(),
+            })),
+          };
+        }
+
+        function structured(result, depth = 0, seen = new Set()) {
+          if (isBoardSnapshot(result)) return result;
+          if (!result || typeof result !== "object" || depth > 4 || seen.has(result)) return null;
+          seen.add(result);
+          for (const key of [
+            "structuredContent",
+            "structured_content",
+            "result",
+            "call_tool_result",
+            "mcp_tool_result",
+            "toolOutput",
+            "output",
+          ]) {
+            const match = structured(result[key], depth + 1, seen);
+            if (match) return match;
+          }
+          return null;
+        }
+
+        function activityResult(result, depth = 0, seen = new Set()) {
+          if (result?.activities && typeof result.activities === "object") return result;
+          if (!result || typeof result !== "object" || depth > 4 || seen.has(result)) return null;
+          seen.add(result);
+          for (const key of [
+            "structuredContent",
+            "structured_content",
+            "result",
+            "call_tool_result",
+            "mcp_tool_result",
+            "toolOutput",
+            "output",
+          ]) {
+            const match = activityResult(result[key], depth + 1, seen);
+            if (match) return match;
+          }
+          return null;
+        }
+
+        function readEmbeddedSnapshot() {
+          try {
+            return JSON.parse(document.getElementById("boardBootstrap")?.textContent || "null");
+          } catch {
+            return null;
+          }
+        }
+
+        function setStatus(message = "", kind = "") {
+          statusNode.textContent = message;
+          statusNode.dataset.kind = kind;
+        }
+
+        function columnColor(column) {
+          return column?.color || COLUMN_COLORS[column?.id] || "#8590a2";
+        }
+
+        function sourceLabel(source = state.source) {
+          return sourceTabs.find((tab) => tab.dataset.source === source)?.textContent?.trim() || source;
+        }
+
+        function moveSettingsColumn(columnId, offset) {
+          const fromIndex = settingsDraft.findIndex((column) => column.id === columnId);
+          const toIndex = fromIndex + offset;
+          if (fromIndex < 0 || toIndex < 0 || toIndex >= settingsDraft.length) return;
+          const [column] = settingsDraft.splice(fromIndex, 1);
+          settingsDraft.splice(toIndex, 0, column);
+          renderColumnSettings();
+        }
+
+        function renderSettingsMigration() {
+          const nextIds = new Set(settingsDraft.map(({ id }) => id));
+          const removed = state.columns.filter(({ id }) => !nextIds.has(id));
+          const affectedCount = removed.reduce(
+            (sum, column) => sum + Number(state.columnCounts[column.id] || 0),
+            0,
+          );
+          const previousTarget = settingsMigrationTarget.value;
+          settingsMigrationTarget.replaceChildren();
+          for (const column of settingsDraft) {
+            settingsMigrationTarget.add(new Option(column.label || "未命名状态", column.id));
+          }
+          settingsMigrationTarget.value = nextIds.has(previousTarget) ? previousTarget : "inbox";
+          settingsMigration.hidden = affectedCount === 0;
+          settingsMigrationText.textContent = affectedCount > 0
+            ? `删除的状态中有 ${affectedCount} 个对话，请选择迁移目标。`
+            : "";
+        }
+
+        function renderColumnSettings() {
+          settingsColumnsList.replaceChildren();
+          settingsDraft.forEach((column, index) => {
+            const row = document.createElement("div");
+            row.className = "settings-column-row";
+            row.dataset.columnId = column.id;
+
+            const handle = document.createElement("button");
+            handle.type = "button";
+            handle.className = "settings-drag-handle";
+            handle.draggable = true;
+            handle.textContent = "⋮⋮";
+            handle.title = "拖动调整顺序";
+            handle.setAttribute("aria-label", `拖动“${column.label}”调整顺序`);
+            handle.addEventListener("dragstart", (event) => {
+              settingsDraggingId = column.id;
+              row.classList.add("dragging");
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("text/plain", column.id);
+            });
+            handle.addEventListener("dragend", () => {
+              settingsDraggingId = null;
+              row.classList.remove("dragging");
+              settingsColumnsList.querySelectorAll(".drag-over").forEach((item) => item.classList.remove("drag-over"));
+            });
+
+            const color = document.createElement("input");
+            color.type = "color";
+            color.className = "settings-color";
+            color.value = columnColor(column);
+            color.setAttribute("aria-label", `“${column.label}”的颜色`);
+            color.addEventListener("input", () => { column.color = color.value; });
+
+            const label = document.createElement("input");
+            label.type = "text";
+            label.className = "settings-input settings-label";
+            label.value = column.label;
+            label.maxLength = 24;
+            label.placeholder = "状态名称";
+            label.setAttribute("aria-label", `状态名称：${column.label}`);
+            label.addEventListener("input", () => {
+              column.label = label.value;
+              handle.setAttribute("aria-label", `拖动“${label.value || "未命名状态"}”调整顺序`);
+              renderSettingsMigration();
+            });
+
+            const description = document.createElement("input");
+            description.type = "text";
+            description.className = "settings-input settings-description";
+            description.value = column.description || "";
+            description.maxLength = 80;
+            description.placeholder = "状态说明（可选）";
+            description.setAttribute("aria-label", `“${column.label}”的状态说明`);
+            description.addEventListener("input", () => { column.description = description.value; });
+
+            const actions = document.createElement("span");
+            actions.className = "settings-row-actions";
+            const up = document.createElement("button");
+            up.type = "button";
+            up.className = "settings-row-button";
+            up.dataset.action = "up";
+            up.textContent = "↑";
+            up.title = "向左移动";
+            up.setAttribute("aria-label", `将“${column.label}”向左移动`);
+            up.disabled = index === 0;
+            up.addEventListener("click", () => moveSettingsColumn(column.id, -1));
+            const down = document.createElement("button");
+            down.type = "button";
+            down.className = "settings-row-button";
+            down.dataset.action = "down";
+            down.textContent = "↓";
+            down.title = "向右移动";
+            down.setAttribute("aria-label", `将“${column.label}”向右移动`);
+            down.disabled = index === settingsDraft.length - 1;
+            down.addEventListener("click", () => moveSettingsColumn(column.id, 1));
+            const remove = document.createElement("button");
+            remove.type = "button";
+            remove.className = "settings-row-button";
+            remove.dataset.action = "delete";
+            remove.textContent = "×";
+            remove.disabled = REQUIRED_COLUMN_IDS.has(column.id);
+            remove.title = remove.disabled ? "系统状态不能删除" : "删除状态";
+            remove.setAttribute("aria-label", remove.disabled ? `“${column.label}”是系统状态，不能删除` : `删除“${column.label}”`);
+            remove.addEventListener("click", () => {
+              settingsDraft = settingsDraft.filter((item) => item.id !== column.id);
+              renderColumnSettings();
+            });
+            actions.append(up, down, remove);
+
+            row.addEventListener("dragover", (event) => {
+              if (!settingsDraggingId || settingsDraggingId === column.id) return;
+              event.preventDefault();
+              row.classList.add("drag-over");
+            });
+            row.addEventListener("dragleave", () => row.classList.remove("drag-over"));
+            row.addEventListener("drop", (event) => {
+              event.preventDefault();
+              row.classList.remove("drag-over");
+              const draggedId = settingsDraggingId || event.dataTransfer.getData("text/plain");
+              const fromIndex = settingsDraft.findIndex((item) => item.id === draggedId);
+              if (fromIndex < 0 || draggedId === column.id) return;
+              const [dragged] = settingsDraft.splice(fromIndex, 1);
+              const targetIndex = settingsDraft.findIndex((item) => item.id === column.id);
+              settingsDraft.splice(Math.max(0, targetIndex), 0, dragged);
+              renderColumnSettings();
+            });
+
+            row.append(handle, color, label, description, actions);
+            settingsColumnsList.append(row);
+          });
+          addColumnButton.disabled = settingsDraft.length >= MAX_COLUMN_COUNT;
+          renderSettingsMigration();
+        }
+
+        function openColumnSettings() {
+          if (!state.hasSnapshot || state.columns.length === 0) {
+            setStatus("看板载入后才能修改状态设置", "error");
+            return;
+          }
+          closeStatusMenu();
+          settingsDraft = state.columns.map((column) => ({
+            id: column.id,
+            label: column.label,
+            description: column.description || "",
+            color: columnColor(column),
+          }));
+          settingsError.textContent = "";
+          settingsSourceLabel.textContent = `只修改当前 ${sourceLabel()} 看板，各来源可使用不同工作流`;
+          renderColumnSettings();
+          columnSettingsDialog.hidden = false;
+          settingsColumnsList.querySelector(".settings-label")?.focus();
+        }
+
+        function closeColumnSettings() {
+          if (settingsSaveButton.disabled) return;
+          columnSettingsDialog.hidden = true;
+          settingsDraggingId = null;
+          settingsDraft = [];
+          settingsButton.focus();
+        }
+
+        function addSettingsColumn() {
+          if (settingsDraft.length >= MAX_COLUMN_COUNT) return;
+          let id;
+          do {
+            id = `custom-${Date.now().toString(36)}-${nextCustomColumnNumber++}`;
+          } while (settingsDraft.some((column) => column.id === id));
+          settingsDraft.push({
+            id,
+            label: "新状态",
+            description: "",
+            color: CUSTOM_COLUMN_COLORS[(settingsDraft.length - 2) % CUSTOM_COLUMN_COLORS.length],
+          });
+          renderColumnSettings();
+          const input = settingsColumnsList.querySelector(`[data-column-id="${id}"] .settings-label`);
+          input?.focus();
+          input?.select();
+        }
+
+        function validatedSettingsDraft() {
+          const columns = settingsDraft.map((column) => ({
+            id: column.id,
+            label: column.label.trim(),
+            description: (column.description || "").trim(),
+            color: column.color.toUpperCase(),
+          }));
+          const empty = columns.find((column) => !column.label);
+          if (empty) throw new Error("每个状态都需要名称");
+          const labels = columns.map((column) => column.label.toLocaleLowerCase("zh-CN"));
+          if (new Set(labels).size !== labels.length) throw new Error("状态名称不能重复");
+          return columns;
+        }
+
+        async function saveColumnSettings() {
+          settingsError.textContent = "";
+          let columns;
+          try {
+            columns = validatedSettingsDraft();
+          } catch (error) {
+            settingsError.textContent = error.message;
+            return;
+          }
+          settingsSaveButton.disabled = true;
+          settingsCancelButton.disabled = true;
+          settingsCloseButton.disabled = true;
+          settingsSaveButton.textContent = "正在保存…";
+          try {
+            const result = await callTool("update_board_columns", {
+              source: state.source,
+              columns,
+              migrationTarget: settingsMigrationTarget.value || "inbox",
+            });
+            const updated = structured(result);
+            if (!updated || !acceptSnapshot(updated, { persist: true })) {
+              throw new Error("插件没有返回更新后的看板");
+            }
+            const migratedCount = Number(updated.settingsUpdate?.migratedThreadIds?.length || 0);
+            columnSettingsDialog.hidden = true;
+            settingsDraft = [];
+            setStatus(
+              migratedCount > 0 ? `设置已保存，${migratedCount} 个对话已迁移` : "状态设置已保存",
+              "success",
+            );
+            setTimeout(() => {
+              if (statusNode.textContent.includes("设置已保存") || statusNode.textContent.includes("状态设置已保存")) setStatus();
+            }, 1_800);
+          } catch (error) {
+            settingsError.textContent = error.message || "状态设置保存失败";
+          } finally {
+            settingsSaveButton.disabled = false;
+            settingsCancelButton.disabled = false;
+            settingsCloseButton.disabled = false;
+            settingsSaveButton.textContent = "保存设置";
+          }
+        }
+
+        function updateSourceUi() {
+          const sourceUi = SOURCE_UI[state.source] || SOURCE_UI.codex;
+          for (const tab of sourceTabs) {
+            tab.setAttribute("aria-selected", String(tab.dataset.source === state.source));
+          }
+          brandSubtitle.textContent = sourceUi.subtitle;
+          search.placeholder = sourceUi.searchPlaceholder;
+          activeMetric.hidden = !sourceUi.activityBadges;
+          unreadMetric.hidden = !sourceUi.activityBadges;
+          boardHint.textContent = sourceUi.hint;
+          loadingText.textContent = sourceUi.loading;
+          settingsButton.disabled = !state.hasSnapshot;
+          settingsButton.title = `设置 ${sourceLabel()} 状态与泳道顺序`;
+          document.body.dataset.boardSource = state.source;
+          document.title = sourceUi.documentTitle;
+          updateSourceHealth();
+        }
+
+        function updateSourceHealth() {
+          if (state.source !== "claude" || !state.sourceDiagnostics) {
+            sourceHealth.hidden = true;
+            sourceHealth.textContent = "";
+            sourceHealth.title = "";
+            return;
+          }
+          const desktop = state.sourceDiagnostics.desktop || {};
+          const cli = state.sourceDiagnostics.cli || {};
+          const loaded = Number(desktop.loaded || 0) + Number(cli.loaded || 0);
+          sourceHealth.hidden = false;
+          sourceHealth.textContent = loaded > 0
+            ? `数据源：Desktop ${Number(desktop.loaded || 0)} · CLI ${Number(cli.loaded || 0)}`
+            : "未检测到 Claude Code 会话目录";
+          sourceHealth.title = [desktop.path, cli.path, desktop.error, cli.error].filter(Boolean).join("\n");
+        }
+
+        function activityForDisplay(threadId, activity) {
+          const opened = state.openedReplies.get(threadId);
+          if (!opened) return activity;
+          if (activity?.state === "unread") {
+            const sameCompletedReply = Boolean(
+              opened.completedAt && activity.completedAt === opened.completedAt,
+            );
+            const missingCompletionStillFresh = !opened.completedAt && opened.until > Date.now();
+            if (sameCompletedReply || missingCompletionStillFresh) {
+              return { ...activity, state: "idle", label: "", unread: false };
+            }
+            state.openedReplies.delete(threadId);
+          } else if (activity?.state === "active") {
+            state.openedReplies.delete(threadId);
+          }
+          return activity;
+        }
+
+        function projectHue(id) {
+          let hash = 0;
+          for (const char of String(id)) hash = (hash * 31 + char.charCodeAt(0)) % 360;
+          return hash;
+        }
+
+        function relativeTime(value) {
+          if (!value) return "更新时间未知";
+          let timestamp;
+          if (typeof value === "number") timestamp = value < 1e12 ? value * 1000 : value;
+          else timestamp = Date.parse(value);
+          if (!Number.isFinite(timestamp)) return "更新时间未知";
+          const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
+          if (seconds < 60) return "刚刚更新";
+          if (seconds < 3600) return `${Math.floor(seconds / 60)} 分钟前`;
+          if (seconds < 86400) return `${Math.floor(seconds / 3600)} 小时前`;
+          if (seconds < 86400 * 30) return `${Math.floor(seconds / 86400)} 天前`;
+          return new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" }).format(timestamp);
+        }
+
+        function filteredThreads() {
+          const query = state.query.trim().toLocaleLowerCase("zh-CN");
+          return state.threads.filter((thread) => {
+            if (state.projectId && thread.project.id !== state.projectId) return false;
+            if (!query) return true;
+            return [thread.title, thread.project.name, thread.branch]
+              .filter(Boolean)
+              .some((value) => String(value).toLocaleLowerCase("zh-CN").includes(query));
+          });
+        }
+
+        function closeStatusMenu({ restoreFocus = false } = {}) {
+          const anchor = state.menuAnchor;
+          statusMenu.hidden = true;
+          statusMenu.replaceChildren();
+          statusMenu.style.removeProperty("left");
+          statusMenu.style.removeProperty("top");
+          anchor?.setAttribute("aria-expanded", "false");
+          state.menuThreadId = null;
+          state.menuAnchor = null;
+          if (restoreFocus && anchor?.isConnected) anchor.focus();
+        }
+
+        function positionStatusMenu(anchor) {
+          const anchorRect = anchor.getBoundingClientRect();
+          const menuRect = statusMenu.getBoundingClientRect();
+          const left = Math.max(8, Math.min(window.innerWidth - menuRect.width - 8, anchorRect.right - menuRect.width));
+          const below = anchorRect.bottom + 6;
+          const top = below + menuRect.height <= window.innerHeight - 8
+            ? below
+            : Math.max(8, anchorRect.top - menuRect.height - 6);
+          statusMenu.style.left = `${left}px`;
+          statusMenu.style.top = `${top}px`;
+        }
+
+        function openStatusMenu(thread, anchor) {
+          if (state.menuThreadId === thread.id) {
+            closeStatusMenu({ restoreFocus: true });
+            return;
+          }
+
+          closeStatusMenu();
+          state.menuThreadId = thread.id;
+          state.menuAnchor = anchor;
+          anchor.setAttribute("aria-expanded", "true");
+
+          for (const column of state.columns) {
+            if (column.id === thread.boardStatus) continue;
+            const option = document.createElement("button");
+            option.type = "button";
+            option.setAttribute("role", "menuitem");
+            option.dataset.status = column.id;
+            const dot = document.createElement("span");
+            dot.className = "status-menu-dot";
+            dot.style.setProperty("--status-color", columnColor(column));
+            const label = document.createElement("span");
+            label.textContent = column.label;
+            option.append(dot, label);
+            option.addEventListener("click", (event) => {
+              event.stopPropagation();
+              closeStatusMenu();
+              moveThread(thread, column.id);
+            });
+            statusMenu.append(option);
+          }
+
+          statusMenu.hidden = false;
+          positionStatusMenu(anchor);
+          statusMenu.querySelector("button")?.focus();
+        }
+
+        function makeCard(thread) {
+          const card = document.createElement("article");
+          card.className = `card${state.savingIds.has(thread.id) ? " saving" : ""}`;
+          card.draggable = true;
+          card.dataset.threadId = thread.id;
+          card.dataset.activity = thread.activity?.state || "idle";
+          card.setAttribute("aria-label", `对话：${thread.title}`);
+
+          const title = document.createElement("h3");
+          title.className = "card-title";
+          const usesToolButton = !thread.openUrl || state.source === "chatgpt";
+          const openButton = document.createElement(usesToolButton ? "button" : "a");
+          openButton.className = "card-open-button";
+          if (usesToolButton) {
+            openButton.type = "button";
+          } else {
+            openButton.href = thread.openUrl || `codex://threads/${thread.id}`;
+            openButton.target = "_top";
+            openButton.rel = "noopener";
+          }
+          openButton.draggable = false;
+          openButton.textContent = thread.title;
+          openButton.setAttribute("aria-label", `打开对话：${thread.title}`);
+          openButton.addEventListener("pointerdown", (event) => event.stopPropagation());
+          openButton.addEventListener("dragstart", (event) => event.preventDefault());
+          openButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            const hasToolBridge =
+              typeof window.__CODEX_BOARD_MOCK__ === "function" ||
+              (window.__CODEX_BOARD_WEB__ && typeof window.__CODEX_BOARD_WEB__.callTool === "function") ||
+              window.parent !== window ||
+              (window.openai && typeof window.openai.callTool === "function");
+            if (!hasToolBridge) return;
+            event.preventDefault();
+            openThread(thread);
+          });
+          title.append(openButton);
+          card.append(title);
+
+          const meta = document.createElement("div");
+          meta.className = "card-meta";
+
+          const project = document.createElement("span");
+          project.className = "project-chip";
+          project.style.setProperty("--project-hue", projectHue(thread.project.id));
+          const projectName = document.createElement("span");
+          projectName.className = "project-name";
+          projectName.textContent = thread.project.name;
+          project.append(projectName);
+
+          const runtime = document.createElement("span");
+          runtime.className = "runtime";
+          runtime.dataset.state = thread.runtime?.state || "unknown";
+          runtime.textContent = thread.runtime?.label || "未加载";
+
+          meta.append(project);
+          if (["active", "unread"].includes(thread.activity?.state)) {
+            const activity = document.createElement("span");
+            activity.className = "activity";
+            activity.dataset.state = thread.activity.state;
+            activity.textContent = thread.activity.label || (
+              thread.activity.state === "active" ? "对话中" : "新回复未读"
+            );
+            activity.title = thread.activity.state === "active"
+              ? "Codex 正在处理这个对话"
+              : "Codex 已返回新回复，尚未从看板打开";
+            meta.append(activity);
+          }
+          if (["approval", "input", "error"].includes(thread.runtime?.state)) meta.append(runtime);
+          if (thread.branch) {
+            const branch = document.createElement("span");
+            branch.className = "branch";
+            branch.textContent = thread.branch;
+            branch.title = thread.branch;
+            meta.append(branch);
+          }
+          card.append(meta);
+
+          const footer = document.createElement("div");
+          footer.className = "card-footer";
+
+          const time = document.createElement("div");
+          time.className = "time";
+          time.textContent = relativeTime(thread.updatedAt);
+
+          const moveButton = document.createElement("button");
+          moveButton.className = "card-move-button";
+          moveButton.type = "button";
+          moveButton.textContent = "移动到…";
+          moveButton.disabled = state.savingIds.has(thread.id);
+          moveButton.draggable = false;
+          moveButton.setAttribute("aria-haspopup", "menu");
+          moveButton.setAttribute("aria-expanded", "false");
+          moveButton.setAttribute("aria-label", `移动对话“${thread.title}”到其他状态`);
+          moveButton.addEventListener("pointerdown", (event) => event.stopPropagation());
+          moveButton.addEventListener("dragstart", (event) => event.preventDefault());
+          moveButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            openStatusMenu(thread, moveButton);
+          });
+          moveButton.addEventListener("keydown", (event) => event.stopPropagation());
+
+          footer.append(time, moveButton);
+          card.append(footer);
+
+          card.addEventListener("dragstart", (event) => {
+            closeStatusMenu();
+            state.draggingId = thread.id;
+            state.dragStartedAt = Date.now();
+            card.classList.add("dragging");
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", thread.id);
+          });
+          card.addEventListener("dragend", () => {
+            state.draggingId = null;
+            card.classList.remove("dragging");
+            document.querySelectorAll(".column.drag-over").forEach((node) => node.classList.remove("drag-over"));
+          });
+          card.addEventListener("click", () => {
+            if (Date.now() - state.dragStartedAt < 300) return;
+            openThread(thread);
+          });
+          return card;
+        }
+
+        function makeLazyDone() {
+          const wrapper = document.createElement("div");
+          wrapper.className = "lazy-done";
+          const count = Number(state.columnCounts.done || 0);
+          const previewCount = Math.min(count, Number(state.donePreviewCount || 0));
+          const historyCount = Math.max(0, count - previewCount);
+          const message = document.createElement("p");
+          message.textContent = count === 0
+            ? "今天还没有完成的对话。"
+            : previewCount > 0 && historyCount > 0
+              ? `今天完成 ${previewCount} 个；另有 ${historyCount} 个历史已完成对话暂未加载。`
+              : previewCount > 0
+                ? `今天完成 ${previewCount} 个。`
+                : `今天还没有完成的对话；${historyCount} 个历史已完成对话暂未加载。`;
+          wrapper.append(message);
+          if (historyCount > 0) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.disabled = state.loadingDone;
+            button.textContent = state.loadingDone ? "正在加载…" : `加载全部已完成（${count}）`;
+            button.addEventListener("click", (event) => {
+              event.stopPropagation();
+              loadDone();
+            });
+            wrapper.append(button);
+          }
+          return wrapper;
+        }
+
+        function makeLazyColumn(columnId, hiddenCount) {
+          const wrapper = document.createElement("div");
+          wrapper.className = "lazy-column";
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = `显示本列其余 ${hiddenCount} 个`;
+          button.addEventListener("click", (event) => {
+            event.stopPropagation();
+            state.expandedColumns.add(columnId);
+            render();
+          });
+          wrapper.append(button);
+          return wrapper;
+        }
+
+        function render() {
+          // 后台快照可能恰好在用户展开“移动到…”时返回。记住菜单所属卡片，
+          // 重绘后重新挂到新卡片上，避免按钮从 DOM 中被替换后点击失效。
+          const menuThreadId = state.menuThreadId;
+          closeStatusMenu();
+          const visible = filteredThreads();
+          const hasFilters = Boolean(state.projectId || state.query.trim());
+          const visibleDonePreviewCount = state.threads.filter((thread) => thread.boardStatus === "done").length;
+          const unloadedDoneCount = !state.doneLoaded && !hasFilters
+            ? Math.max(0, Number(state.columnCounts.done || 0) - visibleDonePreviewCount)
+            : 0;
+          visibleCount.textContent = String(visible.length + unloadedDoneCount);
+          projectCount.textContent = String(state.projects.length);
+          activeCount.textContent = String(visible.filter((thread) => thread.activity?.state === "active").length);
+          unreadCount.textContent = String(visible.filter((thread) => thread.activity?.state === "unread").length);
+          updateSourceHealth();
+          board.replaceChildren();
+          const columnCount = Math.max(1, state.columns.length);
+          board.style.setProperty("--column-count", String(columnCount));
+          board.style.minWidth = `${columnCount * 264 + Math.max(0, columnCount - 1) * 10}px`;
+
+          for (const column of state.columns) {
+            const section = document.createElement("section");
+            section.className = "column";
+            section.dataset.status = column.id;
+            section.style.setProperty("--column-color", columnColor(column));
+
+            const header = document.createElement("header");
+            header.className = "column-header";
+            const dot = document.createElement("span");
+            dot.className = "column-dot";
+            const heading = document.createElement("h2");
+            heading.className = "column-title";
+            heading.textContent = column.label;
+            heading.title = column.description || "";
+            const count = document.createElement("span");
+            count.className = "count";
+            const columnThreads = visible
+              .filter((thread) => thread.boardStatus === column.id)
+              .sort((a, b) => a.boardPosition - b.boardPosition);
+            const shownThreads = state.expandedColumns.has(column.id)
+              ? columnThreads
+              : columnThreads.slice(0, CARD_RENDER_LIMIT);
+            count.textContent = String(
+              column.id === "done" && !state.doneLoaded
+                ? Number(state.columnCounts.done || 0)
+                : columnThreads.length,
+            );
+            header.append(dot, heading, count);
+
+            const cards = document.createElement("div");
+            cards.className = "cards";
+            cards.dataset.status = column.id;
+            for (const thread of shownThreads) cards.append(makeCard(thread));
+            if (shownThreads.length < columnThreads.length) {
+              cards.append(makeLazyColumn(column.id, columnThreads.length - shownThreads.length));
+            }
+            if (column.id === "done" && !state.doneLoaded) cards.append(makeLazyDone());
+
+            cards.addEventListener("dragover", (event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+              section.classList.add("drag-over");
+            });
+            cards.addEventListener("dragleave", (event) => {
+              if (!section.contains(event.relatedTarget)) section.classList.remove("drag-over");
+            });
+            cards.addEventListener("drop", (event) => handleDrop(event, column.id, cards));
+
+            section.append(header, cards);
+            board.append(section);
+          }
+
+          if (menuThreadId) {
+            const thread = visible.find((item) => item.id === menuThreadId);
+            const card = [...board.querySelectorAll(".card")]
+              .find((item) => item.dataset.threadId === menuThreadId);
+            const anchor = card?.querySelector(".card-move-button");
+            if (thread && anchor && !anchor.disabled) openStatusMenu(thread, anchor);
+          }
+        }
+
+        function dropTarget(cards, y) {
+          const candidates = [...cards.querySelectorAll(".card:not(.dragging)")];
+          let nearest = { offset: Number.NEGATIVE_INFINITY, element: null };
+          for (const element of candidates) {
+            const rect = element.getBoundingClientRect();
+            const offset = y - rect.top - rect.height / 2;
+            if (offset < 0 && offset > nearest.offset) nearest = { offset, element };
+          }
+          return nearest.element;
+        }
+
+        async function moveThread(thread, status, beforeThreadId = null) {
+          if (!thread || state.savingIds.has(thread.id)) return;
+          if (thread.boardStatus === status && !beforeThreadId) return;
+
+          const sourceStatus = thread.boardStatus;
+          const previousCounts = { ...state.columnCounts };
+          const previousDonePreviewCount = state.donePreviewCount;
+          const previousLayout = new Map(
+            state.threads.map((item) => [item.id, {
+              status: item.boardStatus,
+              position: item.boardPosition,
+              completedToday: item.completedToday === true,
+            }]),
+          );
+          const targetThreads = state.threads
+            .filter((item) => item.boardStatus === status && item.id !== thread.id)
+            .sort((a, b) => a.boardPosition - b.boardPosition);
+          const targetIndex = beforeThreadId
+            ? Math.max(0, targetThreads.findIndex((item) => item.id === beforeThreadId))
+            : targetThreads.length;
+          targetThreads.splice(targetIndex, 0, thread);
+          targetThreads.forEach((item, index) => {
+            item.boardStatus = status;
+            item.boardPosition = index;
+          });
+          if (sourceStatus !== status) {
+            state.columnCounts[sourceStatus] = Math.max(0, Number(state.columnCounts[sourceStatus] || 0) - 1);
+            state.columnCounts[status] = Number(state.columnCounts[status] || 0) + 1;
+            if (!state.doneLoaded && sourceStatus === "done" && thread.completedToday === true) {
+              state.donePreviewCount = Math.max(0, state.donePreviewCount - 1);
+              thread.completedToday = false;
+            }
+            if (!state.doneLoaded && status === "done") {
+              state.donePreviewCount += 1;
+              thread.completedToday = true;
+            }
+          }
+
+          const targetLabel = state.columns.find((column) => column.id === status)?.label || status;
+          state.savingIds.add(thread.id);
+          render();
+          setStatus(`正在移动到“${targetLabel}”…`);
+          try {
+            await callTool("move_thread", {
+              source: state.source,
+              threadId: thread.id,
+              status,
+              beforeThreadId,
+            });
+            state.savingIds.delete(thread.id);
+            render();
+            setStatus(`已移动到“${targetLabel}”`, "success");
+            setTimeout(() => {
+              if (statusNode.textContent === `已移动到“${targetLabel}”`) setStatus();
+            }, 1400);
+          } catch (error) {
+            for (const item of state.threads) {
+              const previous = previousLayout.get(item.id);
+              if (!previous) continue;
+              item.boardStatus = previous.status;
+              item.boardPosition = previous.position;
+              item.completedToday = previous.completedToday;
+            }
+            state.columnCounts = previousCounts;
+            state.donePreviewCount = previousDonePreviewCount;
+            state.savingIds.delete(thread.id);
+            render();
+            setStatus(error.message || "保存失败", "error");
+          }
+        }
+
+        async function handleDrop(event, status, cards) {
+          event.preventDefault();
+          cards.closest(".column")?.classList.remove("drag-over");
+          const threadId = state.draggingId || event.dataTransfer.getData("text/plain");
+          if (!threadId) return;
+          const beforeCard = dropTarget(cards, event.clientY);
+          const beforeThreadId = beforeCard?.dataset.threadId || null;
+          const thread = state.threads.find((item) => item.id === threadId);
+          if (!thread || beforeThreadId === threadId) return;
+          await moveThread(thread, status, beforeThreadId);
+        }
+
+        async function openThread(thread) {
+          if (!thread?.id) return;
+          const sourceUi = SOURCE_UI[state.source] || SOURCE_UI.codex;
+          const isChatGpt = state.source === "chatgpt";
+          const isCodex = state.source === "codex";
+          const url = isChatGpt ? null : (thread.openUrl || (isCodex ? `codex://threads/${thread.id}` : null));
+          if (thread.activity?.state === "unread") {
+            state.openedReplies.set(thread.id, {
+              completedAt: thread.activity.completedAt || null,
+              until: Date.now() + 60_000,
+            });
+            thread.activity = { ...thread.activity, state: "idle", label: "", unread: false };
+            render();
+          }
+          const destinationName = sourceUi.destination;
+          setStatus(`正在打开${destinationName}…`);
+          const toolNavigation = callTool("open_thread", { source: state.source, threadId: thread.id });
+          // ChatGPT 必须经过 Codex 原生导航；Codex 任务保留同步深链兜底。
+          // Claude 只走一次工具导航，避免 claude://resume 被重复触发。
+          const hostNavigationRequested = isCodex && requestHostNavigation(url);
+          try {
+            await withDeadline(
+              toolNavigation,
+              isChatGpt ? 20_000 : isCodex ? 700 : 5_000,
+              `${destinationName}导航工具未及时响应`,
+            );
+            setStatus();
+            return;
+          } catch (toolError) {
+            if (hostNavigationRequested) {
+              setStatus();
+              return;
+            }
+            if (!isCodex) {
+              setStatus(toolError?.message || `无法打开这个${destinationName}`, "error");
+              return;
+            }
+          }
+          try {
+            const link = document.createElement("a");
+            link.href = url;
+            link.target = "_top";
+            link.rel = "noopener";
+            document.body.append(link);
+            link.click();
+            link.remove();
+            setStatus(`已请求打开${destinationName}`, "success");
+            setTimeout(() => {
+              if (statusNode.textContent === `已请求打开${destinationName}`) setStatus();
+            }, 1400);
+          } catch (error) {
+            setStatus(error.message || "无法打开对话", "error");
+          }
+        }
+
+        async function refreshActivities() {
+          if (!state.hasSnapshot || document.hidden) return;
+          if (state.activityRefreshing) {
+            state.activityRefreshPending = true;
+            return state.activityRefreshPromise;
+          }
+          const threadIds = state.threads
+            .filter((thread) => thread.boardStatus !== "done")
+            .slice(0, 200)
+            .map((thread) => thread.id);
+          const source = state.source;
+          state.activityRefreshing = true;
+          state.activityRefreshPromise = (async () => {
+            do {
+              state.activityRefreshPending = false;
+              try {
+                const result = activityResult(await callTool("get_thread_activity", {
+                  source,
+                  threadIds,
+                }));
+                if (state.source !== source) continue;
+                if (!result || Number(result.activitySourceVersion || 0) < 2) continue;
+                const reopenedThreadIds = Array.isArray(result.reopenedThreadIds)
+                  ? result.reopenedThreadIds
+                  : [];
+                const observedAt = Date.parse(result.generatedAt || "");
+                state.activityObservedAt = Number.isFinite(observedAt) ? observedAt : Date.now();
+                state.activitySourceVersion = Number(result.activitySourceVersion);
+                let changed = false;
+                for (const thread of state.threads) {
+                  const next = activityForDisplay(thread.id, result.activities[thread.id]);
+                  if (!next) continue;
+                  const previous = thread.activity || {};
+                  if (
+                    previous.state !== next.state ||
+                    previous.label !== next.label ||
+                    previous.unread !== next.unread ||
+                    previous.startedAt !== next.startedAt ||
+                    previous.completedAt !== next.completedAt
+                  ) {
+                    thread.activity = next;
+                    changed = true;
+                  }
+                }
+                if (changed) render();
+                if (reopenedThreadIds.length > 0) {
+                  await loadBoard(false, { silent: true });
+                  setStatus(`${reopenedThreadIds.length} 个已完成对话因新回复移回收件箱`, "success");
+                  setTimeout(() => {
+                    if (statusNode.textContent.includes("因新回复移回收件箱")) setStatus();
+                  }, 2_000);
+                }
+              } catch {
+                // Older plugin hosts may not expose the live activity tool yet.
+              }
+            } while (state.activityRefreshPending && !document.hidden);
+          })().finally(() => {
+            state.activityRefreshing = false;
+            state.activityRefreshPromise = null;
+          });
+          return state.activityRefreshPromise;
+        }
+
+        function fastSnapshot(data) {
+          const previewDate = localDateKey();
+          const threads = data.threads.filter((thread) =>
+            thread.boardStatus !== "done" || (
+              data.donePreviewDate === previewDate && thread.completedToday === true
+            ));
+          const projects = new Map();
+          for (const thread of threads) {
+            const project = projects.get(thread.project.id) ?? {
+              id: thread.project.id,
+              name: thread.project.name,
+              count: 0,
+            };
+            project.count += 1;
+            projects.set(project.id, project);
+          }
+          return {
+            ...data,
+            threads,
+            projects: [...projects.values()],
+            doneLoaded: false,
+            donePreviewMode: "today",
+            donePreviewDate: previewDate,
+            donePreviewCount: threads.filter((thread) => thread.boardStatus === "done").length,
+          };
+        }
+
+        function currentSnapshot() {
+          return {
+            source: state.source,
+            snapshotVersion: 2,
+            generatedAt: state.generatedAt || new Date().toISOString(),
+            activitySourceVersion: state.activitySourceVersion,
+            columns: state.columns,
+            projects: state.projects,
+            threads: state.threads,
+            total: state.totalCount,
+            columnCounts: state.columnCounts,
+            doneLoaded: state.doneLoaded,
+            donePreviewMode: state.donePreviewMode,
+            donePreviewDate: state.donePreviewDate,
+            donePreviewCount: state.donePreviewCount,
+            sourceDiagnostics: state.sourceDiagnostics,
+          };
+        }
+
+        function applyBoardData(data, { persist = true } = {}) {
+          const normalizedData = normalizeBoardSnapshot(data);
+          if (!normalizedData) {
+            throw new Error("插件返回的看板数据格式不完整");
+          }
+          const incomingGeneratedAt = Date.parse(normalizedData.generatedAt || "");
+          const incomingActivityVersion = Number(normalizedData.activitySourceVersion || 0);
+          const incomingTime = Number.isFinite(incomingGeneratedAt) ? incomingGeneratedAt : 0;
+          const keepNewerActivities = state.hasSnapshot && (
+            incomingActivityVersion < state.activitySourceVersion ||
+            (
+              incomingActivityVersion === state.activitySourceVersion &&
+              state.activityObservedAt > incomingTime
+            )
+          );
+          const currentById = keepNewerActivities
+            ? new Map(state.threads.map((thread) => [thread.id, thread]))
+            : null;
+          const nextThreads = normalizedData.threads.map((thread) => ({
+            ...thread,
+            activity: activityForDisplay(
+              thread.id,
+              currentById?.get(thread.id)?.activity || thread.activity,
+            ),
+          }));
+
+          state.columns = normalizedData.columns;
+          state.projects = normalizedData.projects;
+          state.threads = nextThreads;
+          state.columnCounts = normalizedData.columnCounts || {};
+          state.totalCount = Number(normalizedData.total || normalizedData.threads.length);
+          state.generatedAt = normalizedData.generatedAt || new Date().toISOString();
+          state.doneLoaded = normalizedData.doneLoaded === true;
+          state.donePreviewMode = normalizedData.donePreviewMode || "today";
+          state.donePreviewDate = normalizedData.donePreviewDate || localDateKey();
+          state.donePreviewCount = state.doneLoaded
+            ? nextThreads.filter((thread) => thread.boardStatus === "done" && thread.completedToday === true).length
+            : Number(normalizedData.donePreviewCount || 0);
+          state.sourceDiagnostics = normalizedData.sourceDiagnostics || null;
+          state.hasSnapshot = true;
+          if (!keepNewerActivities) {
+            state.activitySourceVersion = incomingActivityVersion;
+            state.activityObservedAt = Math.max(state.activityObservedAt, incomingTime);
+          }
+          state.sourceSnapshots.set(state.source, structuredClone({
+            ...normalizedData,
+            threads: nextThreads,
+          }));
+          updateSourceUi();
+          populateProjects();
+          render();
+          loading.hidden = true;
+          document.body.dataset.boardReadyMs = String(Math.round(performance.now()));
+          const shouldAutoLoadClaudeHistory = (
+            state.source === "claude" &&
+            !state.doneLoaded &&
+            state.threads.length === 0 &&
+            Number(state.columnCounts.done || 0) > 0 &&
+            Number(state.columnCounts.done || 0) <= CLAUDE_AUTO_LOAD_DONE_LIMIT
+          );
+          if (shouldAutoLoadClaudeHistory) setTimeout(loadDone, 0);
+          setTimeout(refreshActivities, 100);
+          if (persist && window.openai && typeof window.openai.setWidgetState === "function") {
+            try {
+              window.openai.setWidgetState({
+                boardSnapshot: fastSnapshot({ ...normalizedData, threads: nextThreads }),
+              });
+            } catch {
+              // The filesystem snapshot and tool result remain available on hosts without widget state.
+            }
+          }
+        }
+
+        function acceptSnapshot(value, options = {}) {
+          const data = structured(value);
+          if (!data) return false;
+          applyBoardData(data, options);
+          return true;
+        }
+
+        async function loadBoard(force = false, { silent = false } = {}) {
+          const source = state.source;
+          const hadSnapshot = state.hasSnapshot;
+          if (!silent) {
+            refreshButton.disabled = true;
+            refreshButton.classList.add("spinning");
+            setStatus(force ? "正在刷新…" : "正在载入…");
+          }
+          try {
+            const result = await callTool("get_board", {
+              source,
+              force,
+              includeDone: state.doneLoaded,
+            });
+            if (state.source !== source) return;
+            if (!acceptSnapshot(result, { persist: true })) {
+              throw new Error("插件返回的看板数据格式不完整");
+            }
+            if (!silent) setStatus(force ? "刷新完成" : "");
+            if (force) setTimeout(() => { if (statusNode.textContent === "刷新完成") setStatus(); }, 1400);
+          } catch (error) {
+            if (state.source !== source) return;
+            if (!hadSnapshot) showLoadError(error);
+            if (!silent || !hadSnapshot) setStatus(error.message || "加载失败", "error");
+          } finally {
+            if (!silent && state.source === source) {
+              refreshButton.disabled = false;
+              refreshButton.classList.remove("spinning");
+            }
+          }
+        }
+
+        async function bootstrapBoard() {
+          const candidates = [
+            window.openai?.widgetState?.boardSnapshot,
+            window.openai?.toolOutput,
+            window.openai?.toolResponseMetadata,
+            readEmbeddedSnapshot(),
+          ];
+          for (const candidate of candidates) {
+            if (acceptSnapshot(candidate, { persist: false })) {
+              setStatus();
+              setTimeout(() => loadBoard(false, { silent: true }), 250);
+              return;
+            }
+          }
+
+          try {
+            const cached = await callTool("get_fast_snapshot", { source: state.source });
+            if (acceptSnapshot(cached, { persist: true })) {
+              setStatus();
+              setTimeout(() => loadBoard(false, { silent: true }), 250);
+              return;
+            }
+          } catch {
+            // A fresh installation has no snapshot yet; the authoritative call below will create one.
+          }
+
+          await loadBoard(false);
+        }
+
+        async function switchSource(source) {
+          if (!BOARD_SOURCES.has(source) || source === state.source) return;
+          if (state.hasSnapshot) {
+            state.sourceSnapshots.set(state.source, structuredClone(currentSnapshot()));
+          }
+          closeStatusMenu();
+          state.source = source;
+          state.projectId = "";
+          state.query = "";
+          state.hasSnapshot = false;
+          state.doneLoaded = false;
+          state.loadingDone = false;
+          state.sourceDiagnostics = null;
+          state.activityObservedAt = 0;
+          state.activitySourceVersion = 0;
+          state.expandedColumns.clear();
+          state.openedReplies.clear();
+          search.value = "";
+          updateSourceUi();
+          loading.hidden = false;
+          board.replaceChildren();
+          setStatus("正在切换…");
+
+          const memorySnapshot = state.sourceSnapshots.get(source);
+          if (memorySnapshot && acceptSnapshot(memorySnapshot, { persist: false })) {
+            setStatus();
+            setTimeout(() => loadBoard(false, { silent: true }), 100);
+            return;
+          }
+
+          try {
+            const cached = await callTool("get_fast_snapshot", { source });
+            if (state.source !== source) return;
+            if (acceptSnapshot(cached, { persist: false })) {
+              setStatus();
+              setTimeout(() => loadBoard(false, { silent: true }), 100);
+              return;
+            }
+          } catch {
+            // 第一次打开目录型页签时没有快照，直接读取本机会话目录。
+          }
+          if (state.source === source) await loadBoard(false);
+        }
+
+        async function loadDone() {
+          if (state.doneLoaded || state.loadingDone) return;
+          const source = state.source;
+          state.loadingDone = true;
+          render();
+          setStatus("正在按需读取已完成对话…");
+          try {
+            const result = await callTool("get_board", {
+              source,
+              force: false,
+              includeDone: true,
+            });
+            if (state.source !== source) return;
+            if (!acceptSnapshot(result, { persist: true })) {
+              throw new Error("插件返回的看板数据格式不完整");
+            }
+            setStatus("已完成对话已加载", "success");
+            setTimeout(() => {
+              if (statusNode.textContent === "已完成对话已加载") setStatus();
+            }, 1400);
+          } catch (error) {
+            if (state.source !== source) return;
+            setStatus(error.message || "已完成对话加载失败", "error");
+          } finally {
+            if (state.source === source) {
+              state.loadingDone = false;
+              render();
+            }
+          }
+        }
+
+        function populateProjects() {
+          const current = state.projectId;
+          projectSelect.replaceChildren(new Option(`全部项目（${state.threads.length}）`, ""));
+          for (const project of state.projects) {
+            projectSelect.add(new Option(`${project.name}（${project.count}）`, project.id));
+          }
+          if ([...projectSelect.options].some((option) => option.value === current)) {
+            projectSelect.value = current;
+          } else {
+            state.projectId = "";
+          }
+        }
+
+        function showLoadError(error) {
+          loading.hidden = false;
+          loading.replaceChildren();
+          const panel = document.createElement("div");
+          panel.className = "error-panel";
+          const title = document.createElement("strong");
+          title.textContent = "看板没有载入";
+          const message = document.createElement("p");
+          message.textContent = error?.message || "Codex 没有提供插件工具调用接口。";
+          const retry = document.createElement("button");
+          retry.className = "retry-button";
+          retry.type = "button";
+          retry.textContent = "重新载入";
+          retry.addEventListener("click", () => loadBoard(true));
+          panel.append(title, message, retry);
+          loading.append(panel);
+        }
+
+        search.addEventListener("input", () => {
+          state.query = search.value;
+          render();
+        });
+        projectSelect.addEventListener("change", () => {
+          state.projectId = projectSelect.value;
+          render();
+        });
+        refreshButton.addEventListener("click", () => loadBoard(true));
+        settingsButton.addEventListener("click", openColumnSettings);
+        settingsCloseButton.addEventListener("click", closeColumnSettings);
+        settingsCancelButton.addEventListener("click", closeColumnSettings);
+        addColumnButton.addEventListener("click", addSettingsColumn);
+        settingsSaveButton.addEventListener("click", saveColumnSettings);
+        columnSettingsDialog.querySelector('[data-action="close-settings"]').addEventListener("click", closeColumnSettings);
+        for (const tab of sourceTabs) {
+          tab.addEventListener("click", () => switchSource(tab.dataset.source));
+        }
+        statusMenu.addEventListener("click", (event) => event.stopPropagation());
+        document.addEventListener("click", () => closeStatusMenu());
+        document.addEventListener("scroll", () => closeStatusMenu(), true);
+        document.addEventListener("keydown", (event) => {
+          if (event.key !== "Escape") return;
+          if (!columnSettingsDialog.hidden) closeColumnSettings();
+          else if (!statusMenu.hidden) closeStatusMenu({ restoreFocus: true });
+        });
+        window.addEventListener("resize", () => closeStatusMenu());
+        document.addEventListener("visibilitychange", () => {
+          if (!document.hidden) refreshActivities();
+        });
+        fullscreenButton.addEventListener("click", async () => {
+          try {
+            if (window.__CODEX_BOARD_HOST__ && typeof window.__CODEX_BOARD_HOST__.requestDisplayMode === "function") {
+              await window.__CODEX_BOARD_HOST__.requestDisplayMode({ mode: "fullscreen" });
+              return;
+            }
+            if (window.openai && typeof window.openai.requestDisplayMode === "function") {
+              await window.openai.requestDisplayMode({ mode: "fullscreen" });
+            } else {
+              setStatus("当前 Codex 版本没有提供全屏接口", "error");
+            }
+          } catch (error) {
+            setStatus(error.message || "无法切换全屏", "error");
+          }
+        });
+
+        if (window.parent !== window && typeof window.__CODEX_BOARD_MOCK__ !== "function") {
+          void connectMcpApp().catch(() => {
+            // Compatibility hosts can still expose window.openai.callTool.
+          });
+        }
+        updateSourceUi();
+        bootstrapBoard();
+        setInterval(refreshActivities, 5_000);
+      })();
+    </script>
+  </body>
+</html>

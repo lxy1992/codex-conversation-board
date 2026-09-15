@@ -1,0 +1,34 @@
+{
+  "mcpServers": {
+    "conversationBoard": {
+      "title": "Codex 对话看板",
+      "description": "在 Codex 内查看和整理本机 Codex、ChatGPT 与 Claude Code 对话。",
+      "icons": [
+        {
+          "src": "./assets/icon.svg",
+          "mimeType": "image/svg+xml",
+          "sizes": [
+            "64x64"
+          ]
+        }
+      ],
+      "cwd": ".",
+      "command": "./scripts/launch-mcp-server",
+      "args": [
+        "./server/server.mjs"
+      ],
+      "env_vars": [
+        "CODEX_APP_TOOLS_PIPE_PATH",
+        "CODEX_MCP_NODE_PATH",
+        "CODEX_THREAD_ID",
+        "CODEX_HOME",
+        "CLAUDE_HOME",
+        "CLAUDE_DESKTOP_SESSIONS_PATH",
+        "CLAUDE_CLI_PROJECTS_PATH",
+        "APPDATA",
+        "HOME",
+        "PATH"
+      ]
+    }
+  }
+}

@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: plugins/codex-conversation-board
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install browser test runtime
+        run: npm install --no-save playwright@1.55.0
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Validate source and native app
+        run: npm run check
+      - name: Run tests
+        run: npm test
+      - name: Build universal macOS package
+        run: npm run release:macos

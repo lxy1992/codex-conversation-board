@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+# Codex 打包的 Node 带有访问原生应用工具通道所需的签名；普通 Node 作为兼容回退。
+export CODEX_BOARD_ENABLE_NATIVE_BROKER=1
+
+if [ -n "${CODEX_MCP_NODE_PATH:-}" ] && [ -x "$CODEX_MCP_NODE_PATH" ]; then
+  exec "$CODEX_MCP_NODE_PATH" "$@"
+fi
+
+if [ -x "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node" ]; then
+  exec "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node" "$@"
+fi
+
+exec node "$@"

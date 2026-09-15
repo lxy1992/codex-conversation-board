@@ -1,0 +1,20 @@
+{
+  "name": "conversation-board",
+  "interface": {
+    "displayName": "AI Conversation Board"
+  },
+  "plugins": [
+    {
+      "name": "codex-conversation-board",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codex-conversation-board"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
