@@ -1,6 +1,6 @@
 {
   "name": "codex-conversation-board",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "private": true,
   "type": "module",
   "engines": {
@@ -8,7 +8,7 @@
   },
   "scripts": {
     "benchmark:mcp-app": "node test/mcp-app-performance.mjs",
-    "check": "node --check server/server.mjs && node --check server/claude-thread-service.js && node --check server/external-url-opener.js && node --check server/codex-app-navigator.js && node --check server/native-navigation-broker.js && node --check server/web.mjs && node --check server/web-server.js && node --check server/web-launcher.js && node --check scripts/launch-web-board.mjs && node --check scripts/install-macos-app.mjs && node --check scripts/build-macos-release.mjs && node --check scripts/uninstall-macos-app.mjs && node --check scripts/check-macos-native-app.mjs && node scripts/check-macos-native-app.mjs",
+    "check": "node --check server/server.mjs && node --check server/claude-thread-service.js && node --check server/codex-thread-metadata.js && node --check server/external-url-opener.js && node --check server/codex-app-navigator.js && node --check server/native-navigation-broker.js && node --check server/web.mjs && node --check server/web-server.js && node --check server/web-launcher.js && node --check scripts/launch-web-board.mjs && node --check scripts/install-macos-app.mjs && node --check scripts/build-macos-release.mjs && node --check scripts/uninstall-macos-app.mjs && node --check scripts/check-macos-native-app.mjs && node scripts/check-macos-native-app.mjs",
     "test": "node --test test/*.test.mjs",
     "web": "node server/web.mjs",
     "web:open": "node scripts/launch-web-board.mjs",

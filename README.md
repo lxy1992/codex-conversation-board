@@ -36,6 +36,7 @@ Start a new Codex task and ask: `打开我的 Codex 对话看板`.
 - Configurable status names, colors, descriptions, and lane order.
 - Drag cards or use the per-card **Move to…** menu.
 - Running and unread badges use Codex's native local state instead of timestamp guesses.
+- Renamed conversation titles synchronize automatically on the lightweight card refresh.
 - The Done lane initially shows today's completed conversations; history loads on demand.
 - Completed catalog-backed conversations return to Inbox after new local activity.
 - Clicking a card opens the matching conversation in Codex or Claude Desktop.

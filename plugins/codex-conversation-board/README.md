@@ -17,6 +17,7 @@ A local-first kanban board for **Codex tasks**, **ChatGPT chats synced into Code
 - Separate state, ordering, project filters, and fast snapshots for every source.
 - The Done lane starts with today's completed conversations; older history loads on demand.
 - Clicking a card returns to the matching Codex, ChatGPT, or Claude application view.
+- Renamed conversation titles synchronize automatically without reloading the whole board.
 - Completed catalog-backed conversations move back to Inbox after their local metadata changes.
 - All board state stays on the local machine.
 

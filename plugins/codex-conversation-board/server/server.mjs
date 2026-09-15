@@ -10,6 +10,7 @@ import { BoardStore } from "./board-store.js";
 import { ChatGptThreadService } from "./chatgpt-thread-service.js";
 import { ClaudeThreadService, claudeOpenUrl } from "./claude-thread-service.js";
 import { CodexAppNavigator } from "./codex-app-navigator.js";
+import { CodexThreadMetadataService } from "./codex-thread-metadata.js";
 import { ExternalUrlOpener } from "./external-url-opener.js";
 import { NativeNavigationBroker } from "./native-navigation-broker.js";
 import {
@@ -28,7 +29,7 @@ import { ThreadActivityTracker } from "./thread-activity.js";
 import { ThreadService } from "./thread-service.js";
 import { isSameLocalDay, localDateKey, startOfLocalDayMs } from "./time.js";
 
-const SERVER_VERSION = "0.8.0";
+const SERVER_VERSION = "0.8.1";
 const ACTIVITY_SOURCE_VERSION = SNAPSHOT_ACTIVITY_SOURCE_VERSION;
 const UI_URI = "ui://codex-conversation-board/board.html";
 const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -50,6 +51,7 @@ const claudeBoardStore = new BoardStore({
 });
 const projectResolver = new ProjectResolver({ logger });
 const threadService = new ThreadService({ appServer, projectResolver });
+const codexThreadMetadataService = new CodexThreadMetadataService({ logger });
 const chatGptThreadService = new ChatGptThreadService();
 const claudeThreadService = new ClaudeThreadService();
 const snapshotStore = new SnapshotStore();
@@ -214,6 +216,12 @@ const TOOLS = [
           type: "array",
           items: { type: "string", description: "对话或会话 ID。" },
           maxItems: 200,
+        },
+        metadataThreadIds: {
+          type: "array",
+          items: { type: "string", description: "需要同步最新标题的当前卡片 ID。" },
+          maxItems: 200,
+          description: "可选；批量读取当前可见卡片的最新标题，不读取消息正文。",
         },
       },
       required: ["threadIds"],
@@ -660,9 +668,16 @@ async function callTool(name, args = {}, context = {}) {
   if (name === "get_thread_activity") {
     const source = boardSource(args.source);
     const threadIds = Array.isArray(args.threadIds) ? [...new Set(args.threadIds.map(String))] : [];
+    const metadataThreadIds = Array.isArray(args.metadataThreadIds)
+      ? [...new Set(args.metadataThreadIds.map(String))]
+      : threadIds;
     if (threadIds.length > 200) throw new Error("一次最多读取 200 个对话状态");
+    if (metadataThreadIds.length > 200) throw new Error("一次最多同步 200 个对话标题");
     if (threadIds.some((threadId) => !isConversationId(source, threadId))) {
       throw new Error("threadIds 包含无效的对话或会话 ID");
+    }
+    if (metadataThreadIds.some((threadId) => !isConversationId(source, threadId))) {
+      throw new Error("metadataThreadIds 包含无效的对话或会话 ID");
     }
     if (source !== "codex") {
       const services = sourceServices(source);
@@ -680,15 +695,24 @@ async function callTool(name, args = {}, context = {}) {
         startedAt: null,
         completedAt: null,
       }]));
+      const threadsById = new Map(threads.map((thread) => [thread.id, thread]));
+      const threadMetadata = Object.fromEntries(metadataThreadIds.flatMap((threadId) => {
+        const title = threadsById.get(threadId)?.title;
+        return typeof title === "string" && title ? [[threadId, { title }]] : [];
+      }));
       return textResult(`已读取 ${services.label} 对话活动状态。`, {
         source,
         generatedAt: new Date().toISOString(),
         activitySourceVersion: ACTIVITY_SOURCE_VERSION,
         activities,
+        threadMetadata,
         reopenedThreadIds: reopened.reopenedThreadIds,
       });
     }
-    const reopened = await reopenUnreadDoneThreads();
+    const [reopened, threadMetadata] = await Promise.all([
+      reopenUnreadDoneThreads(),
+      codexThreadMetadataService.read(metadataThreadIds),
+    ]);
     const activities = await activityTracker.refresh(threadIds, {
       nativeUnreadIds: reopened.nativeUnreadIds,
     });
@@ -697,6 +721,7 @@ async function callTool(name, args = {}, context = {}) {
       generatedAt: new Date().toISOString(),
       activitySourceVersion: ACTIVITY_SOURCE_VERSION,
       activities,
+      threadMetadata,
       reopenedThreadIds: reopened.reopenedThreadIds,
     });
   }

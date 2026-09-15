@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1 - 2026-09-15
+
+- Synchronize renamed conversation titles on the existing lightweight activity refresh.
+- Read only the visible Codex cards' title metadata in one local SQLite batch.
+
 ## 0.8.0 - 2026-09-15
 
 - Prepare the first public, privacy-reviewed source release.

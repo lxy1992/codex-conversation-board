@@ -1153,7 +1153,7 @@
             mcpUiConnection = postMessageRequest(
               "ui/initialize",
               {
-                appInfo: { name: "codex-conversation-board", version: "0.8.0" },
+                appInfo: { name: "codex-conversation-board", version: "0.8.1" },
                 appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] },
                 protocolVersion: "2026-01-26",
               },
@@ -2154,6 +2154,10 @@
             .filter((thread) => thread.boardStatus !== "done")
             .slice(0, 200)
             .map((thread) => thread.id);
+          const renderedThreadIds = [...document.querySelectorAll(".card[data-thread-id]")]
+            .map((card) => card.dataset.threadId)
+            .filter(Boolean);
+          const metadataThreadIds = [...new Set([...renderedThreadIds, ...threadIds])].slice(0, 200);
           const source = state.source;
           state.activityRefreshing = true;
           state.activityRefreshPromise = (async () => {
@@ -2163,6 +2167,7 @@
                 const result = activityResult(await callTool("get_thread_activity", {
                   source,
                   threadIds,
+                  metadataThreadIds,
                 }));
                 if (state.source !== source) continue;
                 if (!result || Number(result.activitySourceVersion || 0) < 2) continue;
@@ -2173,7 +2178,15 @@
                 state.activityObservedAt = Number.isFinite(observedAt) ? observedAt : Date.now();
                 state.activitySourceVersion = Number(result.activitySourceVersion);
                 let changed = false;
+                const threadMetadata = result.threadMetadata && typeof result.threadMetadata === "object"
+                  ? result.threadMetadata
+                  : {};
                 for (const thread of state.threads) {
+                  const nextTitle = threadMetadata[thread.id]?.title;
+                  if (typeof nextTitle === "string" && nextTitle && nextTitle !== thread.title) {
+                    thread.title = nextTitle;
+                    changed = true;
+                  }
                   const next = activityForDisplay(thread.id, result.activities[thread.id]);
                   if (!next) continue;
                   const previous = thread.activity || {};
@@ -2188,7 +2201,10 @@
                     changed = true;
                   }
                 }
-                if (changed) render();
+                if (changed) {
+                  state.sourceSnapshots.set(source, structuredClone(currentSnapshot()));
+                  render();
+                }
                 if (reopenedThreadIds.length > 0) {
                   await loadBoard(false, { silent: true });
                   setStatus(`${reopenedThreadIds.length} 个已完成对话因新回复移回收件箱`, "success");

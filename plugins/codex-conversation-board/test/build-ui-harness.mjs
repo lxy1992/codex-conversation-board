@@ -218,6 +218,7 @@ window.openai = {
 const mockScript = `<script>
 window.__CODEX_BOARD_CALLS__ = [];
 window.__CODEX_BOARD_ACTIVITY_OVERRIDES__ = {};
+window.__CODEX_BOARD_TITLE_OVERRIDES__ = {};
 window.__CODEX_BOARD_REOPENED_IDS__ = [];
 window.__CODEX_BOARD_THREADS__ = ${JSON.stringify(snapshotThreads)};
 window.__CODEX_BOARD_SNAPSHOT__ = ${JSON.stringify(snapshot)};
@@ -294,6 +295,19 @@ window.__CODEX_BOARD_MOCK__ = async (name, args) => {
             thread.id,
             window.__CODEX_BOARD_ACTIVITY_OVERRIDES__[thread.id] || thread.activity,
           ]),
+        ),
+        threadMetadata: Object.fromEntries(
+          (args.metadataThreadIds || args.threadIds).map((threadId) => {
+            const sourceThreads = args.source === "chatgpt"
+              ? window.__CODEX_BOARD_CHATGPT_THREADS__
+              : args.source === "claude"
+                ? window.__CODEX_BOARD_CLAUDE_THREADS__
+                : window.__CODEX_BOARD_THREADS__;
+            const thread = sourceThreads.find((item) => item.id === threadId);
+            return [threadId, {
+              title: window.__CODEX_BOARD_TITLE_OVERRIDES__[threadId] || thread?.title || "未命名对话",
+            }];
+          }),
         ),
         reopenedThreadIds: window.__CODEX_BOARD_REOPENED_IDS__.splice(0),
       },

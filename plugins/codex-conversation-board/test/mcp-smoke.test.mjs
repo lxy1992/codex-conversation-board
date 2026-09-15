@@ -102,6 +102,7 @@ test("MCP server advertises the board tools and UI resource", async () => {
     const activityTool = tools.find((tool) => tool.name === "get_thread_activity");
     assert.deepEqual(activityTool._meta.ui.visibility, ["app"]);
     assert.equal(activityTool.annotations.readOnlyHint, false);
+    assert.equal(activityTool.inputSchema.properties.metadataThreadIds.maxItems, 200);
     assert.deepEqual(tools[0].inputSchema.properties.source.enum, ["codex", "chatgpt", "claude"]);
 
     const emptySnapshot = await client.request("tools/call", {
@@ -477,6 +478,27 @@ test("activity polling reopens a completed conversation when Codex marks a new r
   const directory = await mkdtemp(join(tmpdir(), "codex-board-reopen-unread-"));
   const boardPath = join(directory, "board.json");
   const globalStatePath = join(directory, "global-state.json");
+  const catalogPath = join(directory, "catalog.sqlite");
+  const database = new DatabaseSync(catalogPath);
+  database.exec(`
+    CREATE TABLE local_thread_catalog (
+      host_id TEXT NOT NULL,
+      thread_id TEXT NOT NULL,
+      display_title TEXT NOT NULL,
+      source_created_at REAL NOT NULL,
+      source_updated_at REAL NOT NULL,
+      source_recency_at REAL NOT NULL,
+      source_kind TEXT NOT NULL,
+      missing_candidate INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+  database.prepare(`
+    INSERT INTO local_thread_catalog (
+      host_id, thread_id, display_title, source_created_at, source_updated_at,
+      source_recency_at, source_kind, missing_candidate
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+  `).run("local", FIRST, "刚刚改名的对话", 1, 2, 2, "vscode");
+  database.close();
   await writeFile(
     boardPath,
     `${JSON.stringify({
@@ -495,6 +517,7 @@ test("activity polling reopens a completed conversation when Codex marks a new r
     CODEX_BOARD_STATE_PATH: boardPath,
     CODEX_GLOBAL_STATE_PATH: globalStatePath,
     CODEX_BOARD_ACTIVITY_PATH: join(directory, "activity.json"),
+    CODEX_THREAD_CATALOG_PATH: catalogPath,
     HOME: directory,
   });
   try {
@@ -505,9 +528,12 @@ test("activity polling reopens a completed conversation when Codex marks a new r
     });
     const firstPoll = await client.request("tools/call", {
       name: "get_thread_activity",
-      arguments: { threadIds: [] },
+      arguments: { threadIds: [], metadataThreadIds: [FIRST] },
     });
     assert.deepEqual(firstPoll.structuredContent.reopenedThreadIds, [FIRST]);
+    assert.deepEqual(firstPoll.structuredContent.threadMetadata, {
+      [FIRST]: { title: "刚刚改名的对话" },
+    });
     const persisted = JSON.parse(await readFile(boardPath, "utf8"));
     assert.deepEqual(persisted.columns.inbox, [FIRST]);
     assert.deepEqual(persisted.columns.done, []);

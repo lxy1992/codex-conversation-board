@@ -6,7 +6,7 @@ account system, or cloud synchronization.
 ## Data the app reads
 
 - Codex task metadata exposed by the local Codex App Server.
-- The local ChatGPT catalog maintained by Codex Desktop.
+- The local Codex Desktop catalog used for Codex title updates and ChatGPT metadata.
 - Claude Code session metadata from Claude Desktop and Claude CLI indexes.
 - Codex's local read/unread state.
 
