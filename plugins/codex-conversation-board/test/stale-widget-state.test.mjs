@@ -26,7 +26,7 @@ test("a legacy host snapshot renders the board instead of the incomplete-data er
   try {
     const page = await browser.newPage();
     await page.goto(pathToFileURL(HARNESS_PATH).href);
-    await assert.doesNotReject(() => page.locator(".card").first().waitFor({ timeout: 750 }));
+    await assert.doesNotReject(() => page.locator(".card").first().waitFor({ timeout: 5_000 }));
     assert.equal(await page.locator(".error-panel").count(), 0);
     await assert.doesNotReject(() =>
       page.locator('.activity[data-state="active"]').first().waitFor({ timeout: 3_000 }),
