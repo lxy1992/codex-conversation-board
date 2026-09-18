@@ -103,6 +103,7 @@ test("MCP server advertises the board tools and UI resource", async () => {
     assert.deepEqual(activityTool._meta.ui.visibility, ["app"]);
     assert.equal(activityTool.annotations.readOnlyHint, false);
     assert.equal(activityTool.inputSchema.properties.metadataThreadIds.maxItems, 200);
+    assert.equal(tools.find((tool) => tool.name === "get_board").inputSchema.properties.fresh.type, "boolean");
     assert.deepEqual(tools[0].inputSchema.properties.source.enum, ["codex", "chatgpt", "claude"]);
 
     const emptySnapshot = await client.request("tools/call", {
@@ -303,6 +304,22 @@ test("ChatGPT uses its own tab data and board state, then reopens updated comple
     const afterReply = JSON.parse(await readFile(chatGptBoardPath, "utf8"));
     assert.deepEqual(afterReply.columns.done, [SECOND]);
     assert.deepEqual(afterReply.columns.inbox, [FIRST]);
+
+    const newConversation = new DatabaseSync(catalogPath);
+    newConversation.prepare(`
+      INSERT INTO local_thread_catalog (
+        host_id, thread_id, display_title, source_created_at, source_updated_at,
+        source_recency_at, source_kind, project_id, missing_candidate
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+    `).run("chatgpt:test", THIRD, "New ChatGPT chat", updatedRecency, updatedRecency,
+      updatedRecency, "chatgpt", "g-p-test");
+    newConversation.close();
+    const freshBoard = await client.request("tools/call", {
+      name: "get_board",
+      arguments: { source: "chatgpt", fresh: true },
+    });
+    assert.equal(freshBoard.structuredContent.threads.find((thread) => thread.id === THIRD)?.boardStatus,
+      "inbox");
   } finally {
     await client.close();
   }
@@ -623,7 +640,7 @@ test("default board data includes only completed conversations from today", asyn
   }
 });
 
-test("get_board force refresh reloads externally changed lanes", async () => {
+test("get_board fresh refresh reloads externally changed lanes without loading done history", async () => {
   const directory = await mkdtemp(join(tmpdir(), "codex-board-mcp-"));
   const fakeServerPath = join(directory, "fake-app-server.mjs");
   const fakeCliPath = join(directory, "codex");
@@ -703,7 +720,7 @@ test("get_board force refresh reloads externally changed lanes", async () => {
 
     const lazyResponse = await client.request("tools/call", {
       name: "get_board",
-      arguments: { force: true },
+      arguments: { fresh: true },
     });
     assert.equal(lazyResponse.structuredContent.doneLoaded, false);
     assert.equal(lazyResponse.structuredContent.columnCounts.done, 2);

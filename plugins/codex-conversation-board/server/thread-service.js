@@ -108,6 +108,7 @@ export class ThreadService {
     recentLimit = 100,
     recentDoneSince = null,
     force = false,
+    fresh = false,
   } = {}) {
     const activeIds = new Set(activeThreadIds);
     const previewIds = new Set(previewThreadIds);
@@ -124,13 +125,13 @@ export class ThreadService {
     // unusually old conversations can still be discovered. A brand-new board also needs
     // one complete scan because it has no known IDs from which to build a lazy snapshot.
     if (force || knownIds.size === 0) {
-      const threads = await this.listThreads({ limit: 1_200, force });
+      const threads = await this.listThreads({ limit: 1_200, force: force || fresh });
       if (knownIds.size === 0) return threads;
       return threads.filter(shouldInclude);
     }
 
     const now = Date.now();
-    if (this.cache && now - this.cache.createdAt < this.cacheTtlMs) {
+    if (!fresh && this.cache && now - this.cache.createdAt < this.cacheTtlMs) {
       return this.cache.threads.filter(shouldInclude);
     }
 

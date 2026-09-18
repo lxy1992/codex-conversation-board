@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.2 - 2026-09-18
+
+- Refresh new conversations and external lane changes every 15 seconds and on window focus.
+- Bypass short-term metadata caches without loading the entire completed history.
+- Avoid redrawing unchanged cards and surface background-refresh failures.
+
 ## 0.8.1 - 2026-09-15
 
 - Synchronize renamed conversation titles on the existing lightweight activity refresh.

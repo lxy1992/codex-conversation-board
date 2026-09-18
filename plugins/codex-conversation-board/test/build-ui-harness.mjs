@@ -66,12 +66,13 @@ const threads = titles.map((title, index) => {
         : { state: "idle", label: "", unread: false, startedAt: null, completedAt: null },
     boardStatus: column.id,
     boardPosition: Math.floor(index / columns.length),
+    completedToday: column.id === "done",
   };
 });
 const firstDoneId = threads.find((thread) => thread.boardStatus === "done")?.id;
 const allFixtureThreads = todayDoneMode
   ? threads.map((thread) => thread.boardStatus === "done" && thread.id !== firstDoneId
-    ? { ...thread, updatedAt: Date.now() - 3 * 24 * 60 * 60 * 1_000 }
+    ? { ...thread, updatedAt: Date.now() - 3 * 24 * 60 * 60 * 1_000, completedToday: false }
     : thread)
   : threads;
 const snapshotThreads = todayDoneMode
@@ -356,7 +357,7 @@ const html = source
   .replace("    <script>\n      (() => {", `${mockScript}\n    <script>\n      (() => {`)
   .replace(
     "        setInterval(refreshActivities, 5_000);",
-    "        window.__CODEX_BOARD_REFRESH_ACTIVITIES__ = refreshActivities;\n        window.__CODEX_BOARD_APPLY_DATA__ = applyBoardData;\n        setInterval(refreshActivities, 5_000);",
+    "        window.__CODEX_BOARD_REFRESH_ACTIVITIES__ = refreshActivities;\n        window.__CODEX_BOARD_REFRESH_BOARD__ = refreshBoard;\n        window.__CODEX_BOARD_CURRENT_SNAPSHOT__ = currentSnapshot;\n        window.__CODEX_BOARD_APPLY_DATA__ = applyBoardData;\n        setInterval(refreshActivities, 5_000);",
   )
   .replace("  </body>", `    ${dragHarness}\n  </body>`);
 await mkdir(outputDirectory, { recursive: true });

@@ -29,7 +29,7 @@ import { ThreadActivityTracker } from "./thread-activity.js";
 import { ThreadService } from "./thread-service.js";
 import { isSameLocalDay, localDateKey, startOfLocalDayMs } from "./time.js";
 
-const SERVER_VERSION = "0.8.1";
+const SERVER_VERSION = "0.8.2";
 const ACTIVITY_SOURCE_VERSION = SNAPSHOT_ACTIVITY_SOURCE_VERSION;
 const UI_URI = "ui://codex-conversation-board/board.html";
 const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -188,6 +188,11 @@ const TOOLS = [
       properties: {
         source: SOURCE_SCHEMA,
         force: { type: "boolean", default: false },
+        fresh: {
+          type: "boolean",
+          description: "绕过短期缓存读取最新对话，但仍按需加载已完成历史。",
+          default: false,
+        },
         includeDone: {
           type: "boolean",
           description: "是否读取并返回已完成泳道的对话详情。默认按需加载。",
@@ -378,8 +383,8 @@ async function reopenUnreadDoneThreads({ boardSnapshot = null } = {}) {
   };
 }
 
-async function buildCodexSnapshot({ force = false, includeDone = false } = {}) {
-  const boardSnapshot = await boardStore.snapshot({ force });
+async function buildCodexSnapshot({ force = false, fresh = false, includeDone = false } = {}) {
+  const boardSnapshot = await boardStore.snapshot({ force: force || fresh });
   const columnDefinitions = boardSnapshot.columnDefinitions;
   const snapshotNow = Date.now();
   const todayStart = startOfLocalDayMs(snapshotNow);
@@ -390,7 +395,7 @@ async function buildCodexSnapshot({ force = false, includeDone = false } = {}) {
     .filter(({ id }) => id !== "done")
     .flatMap(({ id }) => boardSnapshot.columns[id]);
   const threads = includeDone
-    ? await threadService.listThreads({ limit: 1_200, force })
+    ? await threadService.listThreads({ limit: 1_200, force: force || fresh })
     : await threadService.listBoardThreads({
       activeThreadIds,
       previewThreadIds: todayBoardDoneIds,
@@ -398,6 +403,7 @@ async function buildCodexSnapshot({ force = false, includeDone = false } = {}) {
       knownThreadIds,
       recentDoneSince: todayStart,
       force,
+      fresh,
     });
   const allArranged = await boardStore.arrangeThreads(threads, { board: boardSnapshot });
   const activities = await activityTracker.observeThreads(allArranged);
@@ -409,6 +415,7 @@ async function buildCodexSnapshot({ force = false, includeDone = false } = {}) {
   const arranged = allArranged
     .filter((thread) => includeDone || thread.boardStatus !== "done" || completedToday(thread))
     .map((thread) => ({ ...thread, completedToday: completedToday(thread) }));
+  const titleMetadata = await codexThreadMetadataService.read(arranged.map((thread) => thread.id));
   const projectMap = new Map();
 
   for (const thread of arranged) {
@@ -443,6 +450,7 @@ async function buildCodexSnapshot({ force = false, includeDone = false } = {}) {
     projects,
     threads: arranged.map((thread) => compactThread({
       ...thread,
+      title: titleMetadata[thread.id]?.title ?? thread.title,
       activity: activities[thread.id],
     })),
     total: Object.values(columnCounts).reduce((sum, count) => sum + count, 0),
@@ -478,10 +486,10 @@ async function reopenUpdatedDoneCatalogThreads({ boardStore: selectedBoardStore,
  * 为“本机目录型”对话源构建相同的看板模型。新增来源只需要提供线程服务、
  * 独立状态文件、首次归档策略和说明，不再复制整套看板逻辑。
  */
-async function buildCatalogSnapshot({ source, force = false, includeDone = false } = {}) {
+async function buildCatalogSnapshot({ source, force = false, fresh = false, includeDone = false } = {}) {
   const services = sourceServices(source);
-  let boardSnapshot = await services.boardStore.snapshot({ force });
-  const catalog = await services.threadService.listThreads({ force });
+  let boardSnapshot = await services.boardStore.snapshot({ force: force || fresh });
+  const catalog = await services.threadService.listThreads({ force: force || fresh });
   const threads = catalog.threads;
   const baseline = await services.boardStore.initializeIfEmpty(threads.map((thread) => ({
     threadId: thread.id,
@@ -548,10 +556,10 @@ async function buildCatalogSnapshot({ source, force = false, includeDone = false
   };
 }
 
-async function buildSnapshot({ source = "codex", force = false, includeDone = false } = {}) {
+async function buildSnapshot({ source = "codex", force = false, fresh = false, includeDone = false } = {}) {
   return source === "codex"
-    ? buildCodexSnapshot({ force, includeDone })
-    : buildCatalogSnapshot({ source, force, includeDone });
+    ? buildCodexSnapshot({ force, fresh, includeDone })
+    : buildCatalogSnapshot({ source, force, fresh, includeDone });
 }
 
 function toFastSnapshot(snapshot) {
@@ -628,6 +636,7 @@ async function callTool(name, args = {}, context = {}) {
     const snapshot = await buildSnapshot({
       source,
       force: args.force === true,
+      fresh: args.fresh === true,
       includeDone: args.includeDone === true,
     });
     await selectedSnapshotStore.save(toFastSnapshot(snapshot));

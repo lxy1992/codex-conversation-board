@@ -1,6 +1,6 @@
 {
   "name": "codex-conversation-board",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "A local MCP App kanban board for Codex, ChatGPT, and Claude Code conversations",
   "author": {
     "name": "lxy1992"

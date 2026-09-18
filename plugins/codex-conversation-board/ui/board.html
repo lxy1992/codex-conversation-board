@@ -1023,6 +1023,8 @@
         });
         const CARD_RENDER_LIMIT = 120;
         const CLAUDE_AUTO_LOAD_DONE_LIMIT = 200;
+        const BOARD_REFRESH_INTERVAL_MS = 15_000;
+        const BOARD_RESUME_MIN_INTERVAL_MS = 5_000;
 
         const state = {
           source: "codex",
@@ -1052,6 +1054,9 @@
           activityRefreshPromise: null,
           activityObservedAt: 0,
           activitySourceVersion: 0,
+          boardLoadSequence: 0,
+          boardRefreshToken: null,
+          lastBoardLoadAt: 0,
           openedReplies: new Map(),
           expandedColumns: new Set(),
         };
@@ -1153,7 +1158,7 @@
             mcpUiConnection = postMessageRequest(
               "ui/initialize",
               {
-                appInfo: { name: "codex-conversation-board", version: "0.8.1" },
+                appInfo: { name: "codex-conversation-board", version: "0.8.2" },
                 appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] },
                 protocolVersion: "2026-01-26",
               },
@@ -1567,6 +1572,7 @@
             return;
           }
           settingsSaveButton.disabled = true;
+          state.boardLoadSequence += 1;
           settingsCancelButton.disabled = true;
           settingsCloseButton.disabled = true;
           settingsSaveButton.textContent = "正在保存…";
@@ -2009,6 +2015,7 @@
         async function moveThread(thread, status, beforeThreadId = null) {
           if (!thread || state.savingIds.has(thread.id)) return;
           if (thread.boardStatus === status && !beforeThreadId) return;
+          state.boardLoadSequence += 1;
 
           const sourceStatus = thread.boardStatus;
           const previousCounts = { ...state.columnCounts };
@@ -2269,6 +2276,22 @@
           };
         }
 
+        function boardContentKey(snapshot) {
+          return JSON.stringify({
+            source: snapshot.source,
+            columns: snapshot.columns,
+            projects: snapshot.projects,
+            threads: snapshot.threads.map(({ activity, ...thread }) => thread),
+            total: snapshot.total,
+            columnCounts: snapshot.columnCounts,
+            doneLoaded: snapshot.doneLoaded,
+            donePreviewMode: snapshot.donePreviewMode,
+            donePreviewDate: snapshot.donePreviewDate,
+            donePreviewCount: snapshot.donePreviewCount,
+            sourceDiagnostics: snapshot.sourceDiagnostics || null,
+          });
+        }
+
         function applyBoardData(data, { persist = true } = {}) {
           const normalizedData = normalizeBoardSnapshot(data);
           if (!normalizedData) {
@@ -2349,9 +2372,10 @@
           return true;
         }
 
-        async function loadBoard(force = false, { silent = false } = {}) {
+        async function loadBoard(force = false, { silent = false, fresh = false } = {}) {
           const source = state.source;
           const hadSnapshot = state.hasSnapshot;
+          const requestSequence = ++state.boardLoadSequence;
           if (!silent) {
             refreshButton.disabled = true;
             refreshButton.classList.add("spinning");
@@ -2361,23 +2385,50 @@
             const result = await callTool("get_board", {
               source,
               force,
+              fresh,
               includeDone: state.doneLoaded,
             });
-            if (state.source !== source) return;
+            if (state.source !== source || requestSequence !== state.boardLoadSequence) return;
+            if (silent && (state.draggingId || state.savingIds.size > 0)) return;
+            const incoming = structured(result);
+            if (!incoming) throw new Error("插件返回的看板数据格式不完整");
+            state.lastBoardLoadAt = Date.now();
+            if (silent && state.hasSnapshot && boardContentKey(incoming) === boardContentKey(currentSnapshot())) {
+              state.generatedAt = incoming.generatedAt || state.generatedAt;
+              state.sourceSnapshots.set(source, structuredClone(currentSnapshot()));
+              if (statusNode.textContent === "自动刷新失败，请手动刷新") setStatus();
+              return;
+            }
             if (!acceptSnapshot(result, { persist: true })) {
               throw new Error("插件返回的看板数据格式不完整");
             }
+            if (silent && statusNode.textContent === "自动刷新失败，请手动刷新") setStatus();
             if (!silent) setStatus(force ? "刷新完成" : "");
             if (force) setTimeout(() => { if (statusNode.textContent === "刷新完成") setStatus(); }, 1400);
           } catch (error) {
-            if (state.source !== source) return;
+            if (state.source !== source || requestSequence !== state.boardLoadSequence) return;
             if (!hadSnapshot) showLoadError(error);
-            if (!silent || !hadSnapshot) setStatus(error.message || "加载失败", "error");
+            if (silent && hadSnapshot) setStatus("自动刷新失败，请手动刷新", "error");
+            else setStatus(error.message || "加载失败", "error");
           } finally {
             if (!silent && state.source === source) {
               refreshButton.disabled = false;
               refreshButton.classList.remove("spinning");
             }
+          }
+        }
+
+        async function refreshBoard({ resumed = false } = {}) {
+          if (!state.hasSnapshot || document.hidden || state.boardRefreshToken?.source === state.source) return;
+          if (state.draggingId || state.loadingDone || state.savingIds.size > 0 || !columnSettingsDialog.hidden) return;
+          if (resumed && Date.now() - state.lastBoardLoadAt < BOARD_RESUME_MIN_INTERVAL_MS) return;
+          const source = state.source;
+          const token = { source };
+          state.boardRefreshToken = token;
+          try {
+            await loadBoard(false, { silent: true, fresh: true });
+          } finally {
+            if (state.boardRefreshToken === token) state.boardRefreshToken = null;
           }
         }
 
@@ -2391,7 +2442,7 @@
           for (const candidate of candidates) {
             if (acceptSnapshot(candidate, { persist: false })) {
               setStatus();
-              setTimeout(() => loadBoard(false, { silent: true }), 250);
+              setTimeout(refreshBoard, 250);
               return;
             }
           }
@@ -2400,14 +2451,14 @@
             const cached = await callTool("get_fast_snapshot", { source: state.source });
             if (acceptSnapshot(cached, { persist: true })) {
               setStatus();
-              setTimeout(() => loadBoard(false, { silent: true }), 250);
+              setTimeout(refreshBoard, 250);
               return;
             }
           } catch {
             // A fresh installation has no snapshot yet; the authoritative call below will create one.
           }
 
-          await loadBoard(false);
+          await loadBoard(false, { fresh: true });
         }
 
         async function switchSource(source) {
@@ -2417,6 +2468,7 @@
           }
           closeStatusMenu();
           state.source = source;
+          state.boardLoadSequence += 1;
           state.projectId = "";
           state.query = "";
           state.hasSnapshot = false;
@@ -2436,7 +2488,7 @@
           const memorySnapshot = state.sourceSnapshots.get(source);
           if (memorySnapshot && acceptSnapshot(memorySnapshot, { persist: false })) {
             setStatus();
-            setTimeout(() => loadBoard(false, { silent: true }), 100);
+            setTimeout(refreshBoard, 100);
             return;
           }
 
@@ -2445,18 +2497,19 @@
             if (state.source !== source) return;
             if (acceptSnapshot(cached, { persist: false })) {
               setStatus();
-              setTimeout(() => loadBoard(false, { silent: true }), 100);
+              setTimeout(refreshBoard, 100);
               return;
             }
           } catch {
             // 第一次打开目录型页签时没有快照，直接读取本机会话目录。
           }
-          if (state.source === source) await loadBoard(false);
+          if (state.source === source) await loadBoard(false, { fresh: true });
         }
 
         async function loadDone() {
           if (state.doneLoaded || state.loadingDone) return;
           const source = state.source;
+          const requestSequence = ++state.boardLoadSequence;
           state.loadingDone = true;
           render();
           setStatus("正在按需读取已完成对话…");
@@ -2466,7 +2519,7 @@
               force: false,
               includeDone: true,
             });
-            if (state.source !== source) return;
+            if (state.source !== source || requestSequence !== state.boardLoadSequence) return;
             if (!acceptSnapshot(result, { persist: true })) {
               throw new Error("插件返回的看板数据格式不完整");
             }
@@ -2475,7 +2528,7 @@
               if (statusNode.textContent === "已完成对话已加载") setStatus();
             }, 1400);
           } catch (error) {
-            if (state.source !== source) return;
+            if (state.source !== source || requestSequence !== state.boardLoadSequence) return;
             setStatus(error.message || "已完成对话加载失败", "error");
           } finally {
             if (state.source === source) {
@@ -2544,8 +2597,12 @@
         });
         window.addEventListener("resize", () => closeStatusMenu());
         document.addEventListener("visibilitychange", () => {
-          if (!document.hidden) refreshActivities();
+          if (!document.hidden) {
+            refreshActivities();
+            refreshBoard({ resumed: true });
+          }
         });
+        window.addEventListener("focus", () => refreshBoard({ resumed: true }));
         fullscreenButton.addEventListener("click", async () => {
           try {
             if (window.__CODEX_BOARD_HOST__ && typeof window.__CODEX_BOARD_HOST__.requestDisplayMode === "function") {
@@ -2570,6 +2627,7 @@
         updateSourceUi();
         bootstrapBoard();
         setInterval(refreshActivities, 5_000);
+        setInterval(refreshBoard, BOARD_REFRESH_INTERVAL_MS);
       })();
     </script>
   </body>

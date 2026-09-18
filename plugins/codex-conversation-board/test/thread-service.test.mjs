@@ -93,3 +93,36 @@ test("lazy board lookup includes today's completed metadata without reading all 
   );
   assert.ok(!threads.some(({ id }) => id === NEW));
 });
+
+test("a fresh lazy lookup bypasses the short-term cache without scanning completed history", async () => {
+  let listed = [rawThread(ACTIVE, "active")];
+  const calls = [];
+  const appServer = {
+    async listThreads({ limit }) {
+      calls.push(limit);
+      return listed;
+    },
+    async readThreads() { return []; },
+  };
+  const projectResolver = {
+    async createSnapshot() {
+      return { resolveThread: () => ({ id: "project", name: "Project", rootPaths: [] }) };
+    },
+  };
+  const service = new ThreadService({
+    appServer,
+    projectResolver,
+    statusOverrides: { async load() { return new Map(); } },
+  });
+  await service.listThreads(); // Populate the 20-second whole-catalog cache.
+  listed = [rawThread(NEW, "new"), rawThread(ACTIVE, "active")];
+
+  const threads = await service.listBoardThreads({
+    activeThreadIds: [ACTIVE],
+    knownThreadIds: [ACTIVE],
+    fresh: true,
+  });
+
+  assert.deepEqual(threads.map(({ id }) => id), [NEW, ACTIVE]);
+  assert.deepEqual(calls, [1_200, 100]);
+});
