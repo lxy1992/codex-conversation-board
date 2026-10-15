@@ -2,8 +2,8 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
+import { createJsonlReader } from "./jsonl-reader.js";
 
 const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_SERVER_PATH = resolve(ROOT_DIR, "server/server.mjs");
@@ -44,7 +44,7 @@ export class McpProcessClient {
         env: this.childEnv,
         stdio: ["pipe", "pipe", "pipe"],
       });
-      const lines = createInterface({ input: this.child.stdout, crlfDelay: Infinity });
+      const lines = createJsonlReader({ input: this.child.stdout });
       lines.on("line", (line) => {
         let message;
         try {
@@ -52,6 +52,7 @@ export class McpProcessClient {
         } catch {
           return;
         }
+        if (message === null || typeof message !== "object" || Array.isArray(message)) return;
         const pending = this.pending.get(message.id);
         if (!pending) return;
         this.pending.delete(message.id);

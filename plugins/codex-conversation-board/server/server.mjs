@@ -4,8 +4,8 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createInterface } from "node:readline";
 import { AppServerClient } from "./app-server-client.js";
+import { createJsonlReader } from "./jsonl-reader.js";
 import { BoardStore } from "./board-store.js";
 import { ChatGptThreadService } from "./chatgpt-thread-service.js";
 import { ClaudeThreadService, claudeOpenUrl } from "./claude-thread-service.js";
@@ -893,7 +893,7 @@ function writeMessage(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
-const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
+const input = createJsonlReader({ input: process.stdin });
 input.on("line", async (line) => {
   if (!line.trim()) return;
   let message;
@@ -901,6 +901,11 @@ input.on("line", async (line) => {
     message = JSON.parse(line);
   } catch {
     writeMessage({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } });
+    return;
+  }
+
+  if (message === null || typeof message !== "object" || Array.isArray(message)) {
+    writeMessage({ jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid Request" } });
     return;
   }
 

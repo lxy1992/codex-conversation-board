@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { accessSync, constants as fsConstants } from "node:fs";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
+import { createJsonlReader } from "./jsonl-reader.js";
 import { timestampMs } from "./time.js";
 
 const DEFAULT_CLI_CANDIDATES = [
@@ -56,7 +57,7 @@ export class AppServerClient extends EventEmitter {
     });
     this.process = child;
 
-    const stdout = createInterface({ input: child.stdout });
+    const stdout = createJsonlReader({ input: child.stdout });
     stdout.on("line", (line) => this.#handleLine(line));
 
     const stderr = createInterface({ input: child.stderr });
@@ -92,7 +93,12 @@ export class AppServerClient extends EventEmitter {
     try {
       message = JSON.parse(line);
     } catch {
-      this.emit("protocol-error", new Error(`Invalid App Server JSON: ${line.slice(0, 200)}`));
+      this.emit("protocol-error", new Error("Invalid App Server JSON"));
+      return;
+    }
+
+    if (message === null || typeof message !== "object" || Array.isArray(message)) {
+      this.emit("protocol-error", new Error("Invalid App Server message"));
       return;
     }
 
