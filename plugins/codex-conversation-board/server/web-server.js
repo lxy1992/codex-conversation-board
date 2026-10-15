@@ -11,6 +11,7 @@ const WEB_TOOLS = new Set([
   "get_board",
   "get_thread_activity",
   "move_thread",
+  "quick_move_thread",
   "update_board_columns",
   "open_thread",
 ]);

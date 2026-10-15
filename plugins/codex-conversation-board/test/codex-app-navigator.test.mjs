@@ -9,7 +9,10 @@ import {
   CodexAppNavigator,
   codexAppNavigatorInternals,
 } from "../server/codex-app-navigator.js";
-import { NativeNavigationBroker } from "../server/native-navigation-broker.js";
+import {
+  NativeNavigationBroker,
+  requestBrokerReadState,
+} from "../server/native-navigation-broker.js";
 
 const CALLER_THREAD_ID = "11111111-1111-4111-8111-111111111111";
 const CHAT_THREAD_ID = "22222222-2222-4222-8222-222222222222";
@@ -22,7 +25,7 @@ function encodeFrame(value) {
   return frame;
 }
 
-test("opens a ChatGPT conversation through Codex native app navigation", async () => {
+test("opens a ChatGPT conversation and updates read state through Codex native tools", async () => {
   const directory = await mkdtemp(join(tmpdir(), "codex-board-native-nav-"));
   const pipePath = join(directory, "app-tools.sock");
   const received = [];
@@ -41,12 +44,11 @@ test("opens a ChatGPT conversation through Codex native app navigation", async (
             jsonrpc: "2.0",
             id: request.id,
             result: {
-              tools: [{
-                name: "navigate_to_codex_page",
+              tools: ["navigate_to_codex_page", "set_thread_read_state"].map((name) => ({
+                name,
                 namespace: "codex_app",
-                description: "Navigate to a task or chat",
                 inputSchema: { type: "object" },
-              }],
+              })),
             },
           }));
         } else if (request.method === "tools/call") {
@@ -80,6 +82,18 @@ test("opens a ChatGPT conversation through Codex native app navigation", async (
     assert.equal(received[1].params.threadId, CALLER_THREAD_ID);
     assert.equal(received[1].params.namespace, "codex_app");
     assert.equal(received[1].params.tool, "navigate_to_codex_page");
+
+    assert.deepEqual(
+      await navigator.setThreadReadState(CHAT_THREAD_ID, true, { requestId: "read-request" }),
+      { readUpdated: true, read: true, readState: "codex-app" },
+    );
+    assert.equal(received[2].method, "tools/list");
+    assert.deepEqual(received[3].params.arguments, {
+      threadId: CHAT_THREAD_ID,
+      read: true,
+      source: "codex",
+    });
+    assert.equal(received[3].params.tool, "set_thread_read_state");
   } finally {
     await navigator.close();
     await new Promise((resolve) => server.close(resolve));
@@ -99,12 +113,17 @@ test("standalone web navigation is relayed through the Codex plugin process", as
   const directory = await mkdtemp(join(tmpdir(), "codex-board-native-broker-"));
   const socketPath = join(directory, "native-navigation.sock");
   const navigated = [];
+  const readUpdates = [];
   const broker = new NativeNavigationBroker({
     socketPath,
     navigator: {
       async navigateToThread(threadId) {
         navigated.push(threadId);
         return { navigated: true, navigation: "codex-app" };
+      },
+      async setThreadReadState(threadId, read) {
+        readUpdates.push({ threadId, read });
+        return { readUpdated: true, read, readState: "codex-app" };
       },
     },
   });
@@ -120,8 +139,36 @@ test("standalone web navigation is relayed through the Codex plugin process", as
       { navigated: true, navigation: "codex-app" },
     );
     assert.deepEqual(navigated, [CHAT_THREAD_ID]);
+    assert.deepEqual(
+      await webNavigator.setThreadReadState(CHAT_THREAD_ID, true, { requestId: "web-read-test" }),
+      { readUpdated: true, read: true, readState: "codex-app" },
+    );
+    assert.deepEqual(readUpdates, [{ threadId: CHAT_THREAD_ID, read: true }]);
   } finally {
     await webNavigator.close();
     await broker.close();
+  }
+});
+
+test("read-state relay refuses an old broker instead of accidentally navigating", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "codex-board-old-native-broker-"));
+  const socketPath = join(directory, "native-navigation.sock");
+  const requests = [];
+  const oldBroker = createServer((socket) => {
+    socket.setEncoding("utf8");
+    socket.once("data", (chunk) => {
+      requests.push(JSON.parse(chunk.trim()));
+      socket.end(`${JSON.stringify({ ok: true })}\n`);
+    });
+  });
+  await new Promise((resolveListen) => oldBroker.listen(socketPath, resolveListen));
+  try {
+    await assert.rejects(
+      requestBrokerReadState({ socketPath, threadId: CHAT_THREAD_ID, timeoutMs: 1_000 }),
+      /重启 Codex/,
+    );
+    assert.deepEqual(requests, [{ health: true }]);
+  } finally {
+    await new Promise((resolveClose) => oldBroker.close(resolveClose));
   }
 });

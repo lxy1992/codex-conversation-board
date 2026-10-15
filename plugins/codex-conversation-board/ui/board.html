@@ -551,11 +551,21 @@
       }
 
       .time {
+        flex: 1;
+        min-width: 0;
         color: var(--muted);
         font-size: 10px;
       }
 
-      .card-move-button {
+      .card-actions {
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .card-move-button,
+      .card-quick-button {
         flex: 0 0 auto;
         min-height: 24px;
         padding: 0 7px;
@@ -567,14 +577,30 @@
         cursor: pointer;
       }
 
+      .card-quick-button {
+        max-width: 94px;
+        overflow: hidden;
+        border-color: color-mix(in srgb, #1f845a 42%, var(--line));
+        background: color-mix(in srgb, #1f845a 10%, var(--surface-2));
+        color: #1f845a;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .card-quick-button { color: #7ee2b8; }
+      }
+
       .card-move-button:hover,
-      .card-move-button[aria-expanded="true"] {
+      .card-move-button[aria-expanded="true"],
+      .card-quick-button:hover {
         border-color: color-mix(in srgb, var(--blue) 55%, var(--line));
         background: var(--blue-soft);
         color: var(--blue);
       }
 
-      .card-move-button:disabled {
+      .card-move-button:disabled,
+      .card-quick-button:disabled {
         cursor: wait;
         opacity: 0.55;
       }
@@ -761,6 +787,41 @@
         background: var(--blue-soft);
         color: var(--blue);
         cursor: pointer;
+      }
+
+      .settings-quick-action {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 12px;
+        padding: 11px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--surface-2);
+      }
+
+      .settings-quick-action label {
+        display: grid;
+        gap: 5px;
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .settings-quick-action select {
+        min-width: 150px;
+        height: 32px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--surface);
+        color: var(--text);
+      }
+
+      .settings-quick-action p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 11.5px;
+        line-height: 1.45;
       }
 
       .settings-migration {
@@ -955,6 +1016,12 @@
             <p class="settings-help">拖动或使用箭头调整顺序。收件箱和完成承担系统功能，可以改名和换位置，但不能删除。</p>
             <div id="settingsColumnsList" class="settings-columns-list"></div>
             <button id="addColumnButton" class="settings-add-button" type="button">＋ 添加状态</button>
+            <div class="settings-quick-action">
+              <label>快捷处理目标
+                <select id="settingsQuickMoveTarget" aria-label="卡片快捷处理目标状态"></select>
+              </label>
+              <p>每张卡片的快捷按钮会直接移动到这个状态；Codex 对话会同时标记为已读。</p>
+            </div>
             <div id="settingsMigration" class="settings-migration" hidden>
               <span id="settingsMigrationText"></span>
               <label>迁移到 <select id="settingsMigrationTarget" aria-label="被删除状态的卡片迁移目标"></select></label>
@@ -1047,6 +1114,7 @@
           donePreviewDate: null,
           donePreviewCount: 0,
           sourceDiagnostics: null,
+          quickMoveTarget: "done",
           loadingDone: false,
           hasSnapshot: false,
           activityRefreshing: false,
@@ -1087,6 +1155,7 @@
         const settingsMigration = document.getElementById("settingsMigration");
         const settingsMigrationText = document.getElementById("settingsMigrationText");
         const settingsMigrationTarget = document.getElementById("settingsMigrationTarget");
+        const settingsQuickMoveTarget = document.getElementById("settingsQuickMoveTarget");
         const settingsError = document.getElementById("settingsError");
         const settingsCloseButton = document.getElementById("settingsCloseButton");
         const settingsCancelButton = document.getElementById("settingsCancelButton");
@@ -1158,7 +1227,7 @@
             mcpUiConnection = postMessageRequest(
               "ui/initialize",
               {
-                appInfo: { name: "codex-conversation-board", version: "0.8.4" },
+                appInfo: { name: "codex-conversation-board", version: "0.9.0" },
                 appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] },
                 protocolVersion: "2026-01-26",
               },
@@ -1285,9 +1354,11 @@
             Number(value.activitySourceVersion) === ACTIVITY_SOURCE_VERSION &&
             sourceThreads.every((thread) => isActivity(thread?.activity))
           );
+          const columnIds = new Set(value.columns.map((column) => column?.id));
           return {
             ...value,
             source,
+            quickMoveTarget: columnIds.has(value.quickMoveTarget) ? value.quickMoveTarget : "done",
             activitySourceVersion: hasCurrentActivities ? ACTIVITY_SOURCE_VERSION : 0,
             projects: Array.isArray(value.projects) ? value.projects : [],
             donePreviewMode: "today",
@@ -1340,6 +1411,25 @@
           return null;
         }
 
+        function quickMoveResult(result, depth = 0, seen = new Set()) {
+          if (typeof result?.readMarked === "boolean" && typeof result?.status === "string") return result;
+          if (!result || typeof result !== "object" || depth > 4 || seen.has(result)) return null;
+          seen.add(result);
+          for (const key of [
+            "structuredContent",
+            "structured_content",
+            "result",
+            "call_tool_result",
+            "mcp_tool_result",
+            "toolOutput",
+            "output",
+          ]) {
+            const match = quickMoveResult(result[key], depth + 1, seen);
+            if (match) return match;
+          }
+          return null;
+        }
+
         function readEmbeddedSnapshot() {
           try {
             return JSON.parse(document.getElementById("boardBootstrap")?.textContent || "null");
@@ -1383,6 +1473,12 @@
             settingsMigrationTarget.add(new Option(column.label || "未命名状态", column.id));
           }
           settingsMigrationTarget.value = nextIds.has(previousTarget) ? previousTarget : "inbox";
+          const previousQuickTarget = settingsQuickMoveTarget.value || state.quickMoveTarget;
+          settingsQuickMoveTarget.replaceChildren();
+          for (const column of settingsDraft) {
+            settingsQuickMoveTarget.add(new Option(column.label || "未命名状态", column.id));
+          }
+          settingsQuickMoveTarget.value = nextIds.has(previousQuickTarget) ? previousQuickTarget : "done";
           settingsMigration.hidden = affectedCount === 0;
           settingsMigrationText.textContent = affectedCount > 0
             ? `删除的状态中有 ${affectedCount} 个对话，请选择迁移目标。`
@@ -1515,6 +1611,7 @@
             description: column.description || "",
             color: columnColor(column),
           }));
+          settingsQuickMoveTarget.value = state.quickMoveTarget;
           settingsError.textContent = "";
           settingsSourceLabel.textContent = `只修改当前 ${sourceLabel()} 看板，各来源可使用不同工作流`;
           renderColumnSettings();
@@ -1581,6 +1678,7 @@
               source: state.source,
               columns,
               migrationTarget: settingsMigrationTarget.value || "inbox",
+              quickMoveTarget: settingsQuickMoveTarget.value || "done",
             });
             const updated = structured(result);
             if (!updated || !acceptSnapshot(updated, { persist: true })) {
@@ -1852,7 +1950,30 @@
           });
           moveButton.addEventListener("keydown", (event) => event.stopPropagation());
 
-          footer.append(time, moveButton);
+          const quickTarget = state.columns.find((column) => column.id === state.quickMoveTarget)
+            || state.columns.find((column) => column.id === "done");
+          const quickButton = document.createElement("button");
+          quickButton.className = "card-quick-button";
+          quickButton.type = "button";
+          quickButton.textContent = `✓ ${quickTarget?.label || "完成"}`;
+          quickButton.title = state.source === "codex"
+            ? `移动到“${quickTarget?.label || "完成"}”并标记为已读`
+            : `移动到“${quickTarget?.label || "完成"}”`;
+          quickButton.disabled = state.savingIds.has(thread.id);
+          quickButton.draggable = false;
+          quickButton.setAttribute("aria-label", `${quickButton.title}：${thread.title}`);
+          quickButton.addEventListener("pointerdown", (event) => event.stopPropagation());
+          quickButton.addEventListener("dragstart", (event) => event.preventDefault());
+          quickButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            moveThread(thread, quickTarget?.id || "done", null, { quick: true });
+          });
+          quickButton.addEventListener("keydown", (event) => event.stopPropagation());
+
+          const actions = document.createElement("div");
+          actions.className = "card-actions";
+          actions.append(quickButton, moveButton);
+          footer.append(time, actions);
           card.append(footer);
 
           card.addEventListener("dragstart", (event) => {
@@ -2012,12 +2133,14 @@
           return nearest.element;
         }
 
-        async function moveThread(thread, status, beforeThreadId = null) {
+        async function moveThread(thread, status, beforeThreadId = null, { quick = false } = {}) {
           if (!thread || state.savingIds.has(thread.id)) return;
-          if (thread.boardStatus === status && !beforeThreadId) return;
+          if (thread.boardStatus === status && !beforeThreadId && !quick) return;
           state.boardLoadSequence += 1;
 
           const sourceStatus = thread.boardStatus;
+          const previousActivity = thread.activity ? { ...thread.activity } : idleActivity();
+          const previousOpenedReply = state.openedReplies.get(thread.id);
           const previousCounts = { ...state.columnCounts };
           const previousDonePreviewCount = state.donePreviewCount;
           const previousLayout = new Map(
@@ -2050,23 +2173,37 @@
               thread.completedToday = true;
             }
           }
+          if (quick && thread.activity?.state === "unread") {
+            state.openedReplies.set(thread.id, {
+              completedAt: thread.activity.completedAt || null,
+              until: Date.now() + 60_000,
+            });
+            thread.activity = { ...thread.activity, state: "idle", label: "", unread: false };
+          }
 
           const targetLabel = state.columns.find((column) => column.id === status)?.label || status;
           state.savingIds.add(thread.id);
           render();
-          setStatus(`正在移动到“${targetLabel}”…`);
+          setStatus(quick ? `正在快捷处理到“${targetLabel}”…` : `正在移动到“${targetLabel}”…`);
           try {
-            await callTool("move_thread", {
-              source: state.source,
-              threadId: thread.id,
-              status,
-              beforeThreadId,
-            });
+            const toolResult = await callTool(
+              quick ? "quick_move_thread" : "move_thread",
+              quick
+                ? { source: state.source, threadId: thread.id }
+                : { source: state.source, threadId: thread.id, status, beforeThreadId },
+            );
             state.savingIds.delete(thread.id);
             render();
-            setStatus(`已移动到“${targetLabel}”`, "success");
+            const quickResult = quick ? quickMoveResult(toolResult) : null;
+            const readSyncFailed = quick && state.source === "codex" && quickResult?.readMarked !== true;
+            const successMessage = quick && state.source === "codex"
+              ? readSyncFailed
+                ? `已移动到“${targetLabel}”，但未读标记同步失败`
+                : `已移动到“${targetLabel}”并标记为已读`
+              : `已移动到“${targetLabel}”`;
+            setStatus(successMessage, readSyncFailed ? "error" : "success");
             setTimeout(() => {
-              if (statusNode.textContent === `已移动到“${targetLabel}”`) setStatus();
+              if (statusNode.textContent === successMessage) setStatus();
             }, 1400);
           } catch (error) {
             for (const item of state.threads) {
@@ -2078,6 +2215,9 @@
             }
             state.columnCounts = previousCounts;
             state.donePreviewCount = previousDonePreviewCount;
+            thread.activity = previousActivity;
+            if (previousOpenedReply) state.openedReplies.set(thread.id, previousOpenedReply);
+            else state.openedReplies.delete(thread.id);
             state.savingIds.delete(thread.id);
             render();
             setStatus(error.message || "保存失败", "error");
@@ -2264,6 +2404,7 @@
             generatedAt: state.generatedAt || new Date().toISOString(),
             activitySourceVersion: state.activitySourceVersion,
             columns: state.columns,
+            quickMoveTarget: state.quickMoveTarget,
             projects: state.projects,
             threads: state.threads,
             total: state.totalCount,
@@ -2280,6 +2421,7 @@
           return JSON.stringify({
             source: snapshot.source,
             columns: snapshot.columns,
+            quickMoveTarget: snapshot.quickMoveTarget,
             projects: snapshot.projects,
             threads: snapshot.threads.map(({ activity, ...thread }) => thread),
             total: snapshot.total,
@@ -2319,6 +2461,7 @@
           }));
 
           state.columns = normalizedData.columns;
+          state.quickMoveTarget = normalizedData.quickMoveTarget;
           state.projects = normalizedData.projects;
           state.threads = nextThreads;
           state.columnCounts = normalizedData.columnCounts || {};

@@ -13,9 +13,10 @@ function defaultColumnDefinitions() {
 function emptyBoard(columnDefinitions = defaultColumnDefinitions()) {
   const normalizedColumns = normalizeBoardColumns(columnDefinitions);
   return {
-    version: 3,
+    version: 4,
     updatedAt: null,
     columnDefinitions: normalizedColumns,
+    quickMoveTarget: "done",
     columns: Object.fromEntries(normalizedColumns.map(({ id }) => [id, []])),
     statusChangedAt: {},
   };
@@ -33,6 +34,10 @@ function sanitizeBoard(raw) {
   const board = emptyBoard(columnDefinitions);
   const seen = new Set();
   board.updatedAt = typeof raw?.updatedAt === "string" ? raw.updatedAt : null;
+  const configuredIds = new Set(columnDefinitions.map(({ id }) => id));
+  board.quickMoveTarget = configuredIds.has(raw?.quickMoveTarget)
+    ? raw.quickMoveTarget
+    : "done";
 
   for (const { id } of columnDefinitions) {
     const ids = Array.isArray(raw?.columns?.[id]) ? raw.columns[id] : [];
@@ -42,7 +47,6 @@ function sanitizeBoard(raw) {
       return true;
     });
   }
-  const configuredIds = new Set(columnDefinitions.map(({ id }) => id));
   for (const [id, ids] of Object.entries(raw?.columns ?? {})) {
     if (configuredIds.has(id) || !Array.isArray(ids)) continue;
     for (const threadId of ids) {
@@ -170,13 +174,18 @@ export class BoardStore {
    * 保存当前来源的状态定义和泳道顺序。被删除泳道里的卡片会按旧泳道顺序迁移到
    * 用户选择的保留状态，避免自定义工作流时丢失任何对话。
    */
-  async updateColumns(columnDefinitions, { migrationTarget = "inbox" } = {}) {
+  async updateColumns(columnDefinitions, { migrationTarget = "inbox", quickMoveTarget = null } = {}) {
     const nextDefinitions = normalizeBoardColumns(columnDefinitions);
     const nextIds = new Set(nextDefinitions.map(({ id }) => id));
     if (!nextIds.has(migrationTarget)) throw new Error("卡片迁移目标必须是保留的状态");
+    if (quickMoveTarget != null && !nextIds.has(quickMoveTarget)) {
+      throw new Error("快捷处理目标必须是保留的状态");
+    }
 
     const mutation = async () => {
       await this.load({ force: true });
+      const nextQuickMoveTarget = quickMoveTarget
+        ?? (nextIds.has(this.board.quickMoveTarget) ? this.board.quickMoveTarget : "done");
       const removedIds = this.board.columnDefinitions
         .map(({ id }) => id)
         .filter((id) => !nextIds.has(id));
@@ -197,9 +206,10 @@ export class BoardStore {
       for (const threadId of migratedThreadIds) this.board.statusChangedAt[threadId] = changedAt;
       this.board = {
         ...this.board,
-        version: 3,
+        version: 4,
         updatedAt: changedAt,
         columnDefinitions: nextDefinitions,
+        quickMoveTarget: nextQuickMoveTarget,
         columns: nextColumns,
       };
       await this.#persist();
@@ -208,6 +218,7 @@ export class BoardStore {
         removedStatusIds: removedIds,
         migratedThreadIds,
         migrationTarget,
+        quickMoveTarget: nextQuickMoveTarget,
       };
     };
 

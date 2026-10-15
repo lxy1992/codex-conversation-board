@@ -38,6 +38,8 @@ test("users can add, rename, remove, and reorder board statuses", async (t) => {
     const customRow = page.locator('.settings-column-row[data-column-id^="custom-"]');
     await customRow.locator(".settings-label").fill("等待发布");
     await customRow.locator(".settings-description").fill("等待上线");
+    const customId = await customRow.getAttribute("data-column-id");
+    await page.locator("#settingsQuickMoveTarget").selectOption(customId);
     await customRow.locator('[data-action="up"]').click();
 
     await page.locator('.settings-column-row[data-column-id="todo"] [data-action="delete"]').click();
@@ -60,6 +62,7 @@ test("users can add, rename, remove, and reorder board statuses", async (t) => {
     ]);
     assert.equal(updateCall.args.columns.at(-1).label, "已归档");
     assert.equal(updateCall.args.migrationTarget, "doing");
+    assert.equal(updateCall.args.quickMoveTarget, customId);
     assert.deepEqual(
       await page.locator(".column-title").allTextContents(),
       ["收件箱", "进行中", "阻塞", "待验收", "等待发布", "已归档"],

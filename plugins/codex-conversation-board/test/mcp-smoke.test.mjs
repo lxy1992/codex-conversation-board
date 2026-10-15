@@ -91,6 +91,7 @@ test("MCP server advertises the board tools and UI resource", async () => {
         "get_board",
         "get_thread_activity",
         "move_thread",
+        "quick_move_thread",
         "update_board_columns",
         "open_thread",
       ],
@@ -145,7 +146,10 @@ test("open_thread routes ChatGPT cards to the Codex native navigator", async () 
             jsonrpc: "2.0",
             id: request.id,
             result: {
-              tools: [{ name: "navigate_to_codex_page", namespace: "codex_app" }],
+              tools: ["navigate_to_codex_page", "set_thread_read_state"].map((name) => ({
+                name,
+                namespace: "codex_app",
+              })),
             },
           }));
         } else if (request.method === "tools/call") {
@@ -169,6 +173,8 @@ test("open_thread routes ChatGPT cards to the Codex native navigator", async () 
   const client = createClient({
     CODEX_APP_TOOLS_PIPE_PATH: pipePath,
     CODEX_THREAD_ID: FIRST,
+    CODEX_BOARD_STATE_PATH: join(directory, "board.json"),
+    CODEX_BOARD_ACTIVITY_PATH: join(directory, "activity.json"),
     CODEX_BOARD_NATIVE_NAVIGATION_PATH: join(directory, "native-navigation.json"),
   });
   try {
@@ -187,6 +193,18 @@ test("open_thread routes ChatGPT cards to the Codex native navigator", async () 
     assert.equal(nativeCalls.length, 1);
     assert.equal(nativeCalls[0].arguments.threadId, SECOND);
     assert.equal(nativeCalls[0].threadId, FIRST);
+
+    const quickMove = await client.request("tools/call", {
+      name: "quick_move_thread",
+      arguments: { source: "codex", threadId: FIRST },
+      _meta: { "openai/threadId": FIRST, "openai/turnId": "turn-2" },
+    });
+    assert.equal(quickMove.structuredContent.status, "done");
+    assert.equal(quickMove.structuredContent.readMarked, true);
+    assert.equal(quickMove.structuredContent.nativeReadMarked, true);
+    assert.deepEqual(nativeCalls[1].arguments, { threadId: FIRST, read: true, source: "codex" });
+    assert.equal(nativeCalls[1].tool, "set_thread_read_state");
+    assert.deepEqual(JSON.parse(await readFile(join(directory, "board.json"), "utf8")).columns.done, [FIRST]);
   } finally {
     await client.close();
     await new Promise((resolveClose) => nativeServer.close(resolveClose));

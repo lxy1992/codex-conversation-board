@@ -71,11 +71,26 @@ export class NativeNavigationBroker {
       Promise.resolve().then(async () => {
         const request = JSON.parse(line);
         if (request?.health === true) {
-          writeJsonLine(socket, { ok: true });
+          writeJsonLine(socket, {
+            ok: true,
+            capabilities: ["navigate", "set-read-state"],
+          });
           return;
         }
         if (typeof request?.threadId !== "string" || !request.threadId.trim()) {
-          throw new Error("缺少 ChatGPT 对话编号");
+          throw new Error("缺少对话编号");
+        }
+        if (request.action === "set-read-state") {
+          if (typeof this.navigator.setThreadReadState !== "function") {
+            throw new Error("当前 Codex 通道不支持更新已读状态");
+          }
+          const result = await this.navigator.setThreadReadState(
+            request.threadId.trim(),
+            request.read !== false,
+            { requestId: request.requestId },
+          );
+          writeJsonLine(socket, { ok: true, ...result });
+          return;
         }
         const result = await this.navigator.navigateToThread(request.threadId.trim(), {
           requestId: request.requestId,
@@ -105,12 +120,50 @@ export function requestBrokerNavigation({
   timeoutMs = 22_000,
   healthOnly = false,
 } = {}) {
+  return requestBrokerAction({
+    socketPath,
+    request: healthOnly ? { health: true } : { action: "navigate", threadId, requestId },
+    timeoutMs,
+    timeoutMessage: "Codex 网页导航代理响应超时",
+    failureMessage: "Codex 网页导航代理失败",
+  });
+}
+
+export async function requestBrokerReadState({
+  socketPath = DEFAULT_NATIVE_NAVIGATION_BROKER_PATH,
+  threadId,
+  read = true,
+  requestId,
+  timeoutMs = 22_000,
+} = {}) {
+  // 0.8.x brokers treated every request containing threadId as navigation. Probe first so an
+  // upgraded standalone app never opens the card by accident while Codex still runs an old broker.
+  const health = await requestBrokerAction({
+    socketPath,
+    request: { health: true },
+    timeoutMs: Math.min(timeoutMs, 1_000),
+    timeoutMessage: "Codex 已读状态代理响应超时",
+    failureMessage: "Codex 已读状态代理失败",
+  });
+  if (!health.capabilities?.includes("set-read-state")) {
+    throw new Error("请重启 Codex 以启用已读状态同步");
+  }
+  return requestBrokerAction({
+    socketPath,
+    request: { action: "set-read-state", threadId, read, requestId },
+    timeoutMs,
+    timeoutMessage: "Codex 已读状态代理响应超时",
+    failureMessage: "Codex 已读状态代理失败",
+  });
+}
+
+function requestBrokerAction({ socketPath, request, timeoutMs, timeoutMessage, failureMessage }) {
   return new Promise((resolveRequest, rejectRequest) => {
     const socket = net.createConnection(socketPath);
     let body = "";
     const timer = setTimeout(() => {
       socket.destroy();
-      rejectRequest(new Error("Codex 网页导航代理响应超时"));
+      rejectRequest(new Error(timeoutMessage));
     }, timeoutMs);
     const fail = (error) => {
       clearTimeout(timer);
@@ -119,7 +172,7 @@ export function requestBrokerNavigation({
     socket.once("error", fail);
     socket.once("connect", () => {
       socket.setEncoding("utf8");
-      socket.write(`${JSON.stringify(healthOnly ? { health: true } : { threadId, requestId })}\n`);
+      socket.write(`${JSON.stringify(request)}\n`);
     });
     socket.on("data", (chunk) => {
       body += chunk;
@@ -135,7 +188,7 @@ export function requestBrokerNavigation({
         return;
       }
       socket.end();
-      if (response?.ok !== true) rejectRequest(new Error(response?.error || "Codex 网页导航代理失败"));
+      if (response?.ok !== true) rejectRequest(new Error(response?.error || failureMessage));
       else resolveRequest(response);
     });
   });

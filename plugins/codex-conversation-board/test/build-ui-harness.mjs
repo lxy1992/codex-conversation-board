@@ -85,6 +85,7 @@ const snapshot = {
   generatedAt: new Date().toISOString(),
   activitySourceVersion: 2,
   columns,
+  quickMoveTarget: "done",
   projects,
   threads: snapshotThreads,
   total: allFixtureThreads.length,
@@ -136,6 +137,7 @@ const chatGptSnapshot = {
   generatedAt: new Date().toISOString(),
   activitySourceVersion: 2,
   columns,
+  quickMoveTarget: "done",
   projects: [
     { id: "g-p-personal", name: "个人", count: 1 },
     { id: "chatgpt-projectless", name: "普通 Chat", count: 1 },
@@ -185,6 +187,7 @@ const claudeSnapshot = {
   generatedAt: new Date().toISOString(),
   activitySourceVersion: 2,
   columns,
+  quickMoveTarget: "done",
   projects: [
     { id: "claude:/work/demo-api", name: "demo-api", count: 1 },
     { id: "claude:/work/demo-app", name: "demo-app", count: 1 },
@@ -264,6 +267,7 @@ window.__CODEX_BOARD_MOCK__ = async (name, args) => {
         .forEach((thread, index) => { thread.boardPosition = index; });
     }
     sourceSnapshot.columns = structuredClone(args.columns);
+    sourceSnapshot.quickMoveTarget = args.quickMoveTarget || "done";
     sourceSnapshot.columnCounts = Object.fromEntries(args.columns.map((column) => [
       column.id,
       sourceSnapshot.threads.filter((thread) => thread.boardStatus === column.id).length,
@@ -275,11 +279,29 @@ window.__CODEX_BOARD_MOCK__ = async (name, args) => {
         settingsUpdate: {
           migratedThreadIds,
           migrationTarget: args.migrationTarget || "inbox",
+          quickMoveTarget: sourceSnapshot.quickMoveTarget,
         },
       },
     };
   }
   if (name === "move_thread") return { structuredContent: { ok: true, ...args } };
+  if (name === "quick_move_thread") {
+    const sourceSnapshot = args.source === "chatgpt"
+      ? window.__CODEX_BOARD_CHATGPT_SNAPSHOT__
+      : args.source === "claude"
+        ? window.__CODEX_BOARD_CLAUDE_SNAPSHOT__
+        : window.__CODEX_BOARD_SNAPSHOT__;
+    return {
+      structuredContent: {
+        ok: true,
+        ...args,
+        status: sourceSnapshot.quickMoveTarget || "done",
+        readMarked: true,
+        nativeReadMarked: args.source === "codex",
+        activity: { state: "idle", label: "", unread: false },
+      },
+    };
+  }
   if (name === "get_thread_activity") {
     ${staleWidgetMode ? "await new Promise((resolve) => setTimeout(resolve, 2_000));" : ""}
     return {

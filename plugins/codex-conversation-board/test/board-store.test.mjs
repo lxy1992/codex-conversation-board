@@ -163,6 +163,29 @@ test("persists custom statuses, their order, and migrates cards from deleted lan
   assert.deepEqual(reloaded.columns["waiting-release"], [FIRST]);
 });
 
+test("persists a customizable quick-move target and falls back to done when it is removed", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "codex-board-quick-target-"));
+  const filePath = join(directory, "board.json");
+  const store = new BoardStore({ filePath });
+  const initial = await store.snapshot();
+
+  assert.equal(initial.quickMoveTarget, "done");
+  const customized = await store.updateColumns(initial.columnDefinitions, {
+    quickMoveTarget: "review",
+  });
+  assert.equal(customized.board.quickMoveTarget, "review");
+  assert.equal((await new BoardStore({ filePath }).snapshot()).quickMoveTarget, "review");
+
+  const withoutReview = customized.board.columnDefinitions.filter(({ id }) => id !== "review");
+  const removed = await store.updateColumns(withoutReview);
+  assert.equal(removed.board.quickMoveTarget, "done");
+
+  await assert.rejects(
+    store.updateColumns(withoutReview, { quickMoveTarget: "review" }),
+    /快捷处理目标必须是保留的状态/,
+  );
+});
+
 test("requires the inbox and done system statuses in every configuration", async () => {
   const directory = await mkdtemp(join(tmpdir(), "codex-board-required-columns-"));
   const store = new BoardStore({ filePath: join(directory, "board.json") });
@@ -204,7 +227,8 @@ test("upgrades a legacy board to default column definitions without losing cards
   }));
 
   const snapshot = await new BoardStore({ filePath }).snapshot();
-  assert.equal(snapshot.version, 3);
+  assert.equal(snapshot.version, 4);
+  assert.equal(snapshot.quickMoveTarget, "done");
   assert.deepEqual(snapshot.columnDefinitions.map(({ id }) => id), [
     "inbox",
     "todo",

@@ -13,6 +13,7 @@ function snapshot() {
     generatedAt: "2025-01-02T00:00:00.000Z",
     activitySourceVersion: 2,
     columns: [{ id: "inbox", label: "收件箱", description: "刚出现、尚未分类" }],
+    quickMoveTarget: "done",
     projects: [{ id: "demo-project", name: "Demo Project", count: 1 }],
     threads: [{
       id: THREAD_ID,
@@ -86,6 +87,20 @@ test("serves the shared board UI and protects browser operations with a per-proc
     assert.deepEqual(calls.at(-1), {
       name: "move_thread",
       args: { threadId: THREAD_ID, status: "doing" },
+    });
+
+    const quickMoved = await fetch(`${origin}/api/tools/quick_move_thread`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-codex-board-token": "test-token",
+      },
+      body: JSON.stringify({ source: "codex", threadId: THREAD_ID }),
+    });
+    assert.equal(quickMoved.status, 200);
+    assert.deepEqual(calls.at(-1), {
+      name: "quick_move_thread",
+      args: { source: "codex", threadId: THREAD_ID },
     });
 
     const privateTool = await fetch(`${origin}/api/tools/show_board`, {

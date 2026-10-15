@@ -13,7 +13,8 @@ A local-first kanban board for **Codex tasks**, **ChatGPT chats synced into Code
 
 - Six default lanes: Inbox, Todo, Doing, Blocked, Review, Done.
 - Add, rename, recolor, remove, and reorder statuses independently for every source.
-- Drag cards or use the per-card **Move to…** menu.
+- Drag cards, use the per-card **Move to…** menu, or use the one-click quick action.
+- Choose the quick-action target independently for every source; Codex cards are also marked read.
 - Separate state, ordering, project filters, and fast snapshots for every source.
 - The Done lane starts with today's completed conversations; older history loads on demand.
 - Clicking a card returns to the matching Codex, ChatGPT, or Claude application view.
@@ -26,6 +27,7 @@ A local-first kanban board for **Codex tasks**, **ChatGPT chats synced into Code
 可以为每个来源分别新增、改名、换色、删除状态或调整泳道顺序。收件箱和完成可以改名、
 换色和移动，但不能删除，以保留新对话接收和完成后新回复回流能力。删除其他状态时，
 可以选择其中卡片的迁移目标。“完成”列默认只展示今天完成的内容，历史内容按需加载。
+每张卡片还有一个可自定义目标状态的快捷按钮；处理 Codex 卡片时会同时标记为已读。
 
 ## Supported sources / 数据源
 

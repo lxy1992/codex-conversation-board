@@ -29,7 +29,7 @@ import { ThreadActivityTracker } from "./thread-activity.js";
 import { ThreadService } from "./thread-service.js";
 import { isSameLocalDay, localDateKey, startOfLocalDayMs } from "./time.js";
 
-const SERVER_VERSION = "0.8.4";
+const SERVER_VERSION = "0.9.0";
 const ACTIVITY_SOURCE_VERSION = SNAPSHOT_ACTIVITY_SOURCE_VERSION;
 const UI_URI = "ui://codex-conversation-board/board.html";
 const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -272,6 +272,27 @@ const TOOLS = [
     _meta: APP_ONLY_META,
   },
   {
+    name: "quick_move_thread",
+    title: "快捷处理对话卡片",
+    description: "把一个对话移动到用户设置的快捷目标状态，并在 Codex 支持时标记为已读。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        source: SOURCE_SCHEMA,
+        threadId: { type: "string", description: "对话或会话 ID。" },
+      },
+      required: ["threadId"],
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    _meta: APP_ONLY_META,
+  },
+  {
     name: "update_board_columns",
     title: "更新看板状态设置",
     description: "设置当前对话来源的状态类型、名称、颜色和泳道顺序。",
@@ -300,6 +321,12 @@ const TOOLS = [
           pattern: "^[a-z][a-z0-9-]{0,39}$",
           description: "被删除状态中的卡片要迁移到的保留状态，默认收件箱。",
           default: "inbox",
+        },
+        quickMoveTarget: {
+          type: "string",
+          pattern: "^[a-z][a-z0-9-]{0,39}$",
+          description: "卡片快捷处理按钮要移动到的状态，默认完成。",
+          default: "done",
         },
       },
       required: ["columns"],
@@ -447,6 +474,7 @@ async function buildCodexSnapshot({ force = false, fresh = false, includeDone = 
     generatedAt: new Date().toISOString(),
     activitySourceVersion: ACTIVITY_SOURCE_VERSION,
     columns: columnDefinitions,
+    quickMoveTarget: boardSnapshot.quickMoveTarget,
     projects,
     threads: arranged.map((thread) => compactThread({
       ...thread,
@@ -541,6 +569,7 @@ async function buildCatalogSnapshot({ source, force = false, fresh = false, incl
     generatedAt: new Date().toISOString(),
     activitySourceVersion: ACTIVITY_SOURCE_VERSION,
     columns: columnDefinitions,
+    quickMoveTarget: boardSnapshot.quickMoveTarget,
     projects,
     threads: arranged.map(compactThread),
     total: allArranged.length,
@@ -662,6 +691,7 @@ async function callTool(name, args = {}, context = {}) {
       generatedAt: new Date().toISOString(),
       activitySourceVersion: ACTIVITY_SOURCE_VERSION,
       columns,
+      quickMoveTarget: boardSnapshot?.quickMoveTarget ?? "done",
       projects: [],
       threads: [],
       total: 0,
@@ -756,6 +786,51 @@ async function callTool(name, args = {}, context = {}) {
     return textResult(`已移动到${targetColumn.label}。`, result);
   }
 
+  if (name === "quick_move_thread") {
+    const source = boardSource(args.source);
+    const { boardStore: selectedBoardStore } = sourceServices(source);
+    const threadId = String(args.threadId ?? "");
+    if (!isConversationId(source, threadId)) throw new Error("threadId 不是有效的对话或会话 ID");
+
+    const boardSnapshot = await selectedBoardStore.snapshot({ force: true });
+    const status = boardSnapshot.quickMoveTarget ?? "done";
+    const targetColumn = boardSnapshot.columnDefinitions.find((column) => column.id === status);
+    if (!targetColumn) throw new Error("快捷处理目标状态已不存在，请重新保存看板设置");
+
+    await selectedBoardStore.moveThread(threadId, status);
+    let activity = null;
+    let nativeReadMarked = false;
+    if (source === "codex") {
+      try {
+        const readState = await codexAppNavigator.setThreadReadState(threadId, true, context);
+        nativeReadMarked = readState.readUpdated === true;
+      } catch (error) {
+        logger.error(`无法同步 Codex 原生已读状态: ${error.message}`);
+      }
+      activity = await activityTracker.markSeen(threadId).catch(() => null);
+    }
+    const trackerReadMarked = Boolean(activity?.completedAt && activity.unread !== true);
+    const readMarked = source !== "codex" || nativeReadMarked || trackerReadMarked;
+    const result = {
+      ok: true,
+      source,
+      threadId,
+      status,
+      targetLabel: targetColumn.label,
+      readMarked,
+      nativeReadMarked,
+      activity,
+    };
+    return textResult(
+      source === "codex"
+        ? readMarked
+          ? `已移动到${targetColumn.label}并标记为已读。`
+          : `已移动到${targetColumn.label}，但未能同步已读状态。`
+        : `已移动到${targetColumn.label}。`,
+      result,
+    );
+  }
+
   if (name === "update_board_columns") {
     const source = boardSource(args.source);
     const {
@@ -764,6 +839,7 @@ async function callTool(name, args = {}, context = {}) {
     } = sourceServices(source);
     const update = await selectedBoardStore.updateColumns(args.columns, {
       migrationTarget: String(args.migrationTarget ?? "inbox"),
+      quickMoveTarget: args.quickMoveTarget == null ? null : String(args.quickMoveTarget),
     });
     const snapshot = await buildSnapshot({ source, force: true, includeDone: false });
     await selectedSnapshotStore.save(toFastSnapshot(snapshot));
@@ -778,6 +854,7 @@ async function callTool(name, args = {}, context = {}) {
           removedStatusIds: update.removedStatusIds,
           migratedThreadIds: update.migratedThreadIds,
           migrationTarget: update.migrationTarget,
+          quickMoveTarget: update.quickMoveTarget,
         },
       },
     );
