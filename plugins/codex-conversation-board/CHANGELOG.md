@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Preserve U+2028/U+2029 in App Server and MCP JSONL messages so Unicode conversation metadata does not block board startup.
+- Share LF-only framing with streaming UTF-8 decoding, CRLF and final-record support across all three protocol inputs.
+- Recover from malformed and non-object protocol records without including their payloads in App Server parse errors.
+
 ## 0.8.2 - 2026-09-18
 
 - Refresh new conversations and external lane changes every 15 seconds and on window focus.
