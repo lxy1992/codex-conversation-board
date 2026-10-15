@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.3 - 2026-10-15
+
+- Parse JSONL protocol traffic using LF only, so U+2028/U+2029 remain valid inside JSON strings on Node.js 24.
+- Preserve UTF-8 characters split across stream chunks and accept CRLF or a final message without LF.
+- Run the protocol regression suite on both Node.js 22 and 24 in CI.
+
 ## 0.8.2 - 2026-09-18
 
 - Refresh new conversations and external lane changes every 15 seconds and on window focus.

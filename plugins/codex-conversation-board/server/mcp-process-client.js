@@ -2,8 +2,8 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
+import { readJsonLines } from "./jsonl-reader.js";
 
 const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_SERVER_PATH = resolve(ROOT_DIR, "server/server.mjs");
@@ -44,8 +44,7 @@ export class McpProcessClient {
         env: this.childEnv,
         stdio: ["pipe", "pipe", "pipe"],
       });
-      const lines = createInterface({ input: this.child.stdout, crlfDelay: Infinity });
-      lines.on("line", (line) => {
+      readJsonLines(this.child.stdout, (line) => {
         let message;
         try {
           message = JSON.parse(line);
@@ -85,7 +84,7 @@ export class McpProcessClient {
       await this.request("initialize", {
         protocolVersion: "2025-03-26",
         capabilities: {},
-        clientInfo: { name: "codex-conversation-board-web", version: "0.8.2" },
+        clientInfo: { name: "codex-conversation-board-web", version: "0.8.3" },
       });
     })();
     return this.startPromise;

@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { accessSync, constants as fsConstants } from "node:fs";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
+import { readJsonLines } from "./jsonl-reader.js";
 import { timestampMs } from "./time.js";
 
 const DEFAULT_CLI_CANDIDATES = [
@@ -56,8 +57,7 @@ export class AppServerClient extends EventEmitter {
     });
     this.process = child;
 
-    const stdout = createInterface({ input: child.stdout });
-    stdout.on("line", (line) => this.#handleLine(line));
+    readJsonLines(child.stdout, (line) => this.#handleLine(line));
 
     const stderr = createInterface({ input: child.stderr });
     stderr.on("line", (line) => {
@@ -77,7 +77,7 @@ export class AppServerClient extends EventEmitter {
       clientInfo: {
         name: "codex-conversation-board",
         title: "Codex Conversation Board",
-        version: "0.8.2",
+        version: "0.8.3",
       },
       capabilities: {
         experimentalApi: true,
