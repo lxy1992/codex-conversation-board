@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.4 - 2026-10-15
+
+- Discover the Codex CLI in the current ChatGPT desktop bundle layout.
+- Support both system-wide and per-user ChatGPT/Codex app installations, plus Homebrew paths.
+- Keep `CODEX_CLI_PATH` as the highest-priority explicit override.
+
 ## 0.8.3 - 2026-10-15
 
 - Parse JSONL protocol traffic using LF only, so U+2028/U+2029 remain valid inside JSON strings on Node.js 24.

@@ -2,14 +2,31 @@ import { EventEmitter } from "node:events";
 import { accessSync, constants as fsConstants } from "node:fs";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
+import { homedir } from "node:os";
+import path from "node:path";
 import { readJsonLines } from "./jsonl-reader.js";
 import { timestampMs } from "./time.js";
 
-const DEFAULT_CLI_CANDIDATES = [
-  "/Applications/ChatGPT.app/Contents/Resources/codex",
-  "/Applications/Codex.app/Contents/Resources/codex",
-  "codex",
-];
+export function buildDefaultCodexCliCandidates(homeDirectory = homedir()) {
+  const appDirectories = ["/Applications", path.join(homeDirectory, "Applications")];
+  const appNames = ["ChatGPT.app", "Codex.app"];
+  return [
+    ...appDirectories.flatMap((appDirectory) => appNames.flatMap((appName) => [
+      path.join(appDirectory, appName, "Contents/Resources/codex-cli/bin/codex"),
+      path.join(
+        appDirectory,
+        appName,
+        "Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+      ),
+      path.join(appDirectory, appName, "Contents/Resources/codex"),
+    ])),
+    "/opt/homebrew/bin/codex",
+    "/usr/local/bin/codex",
+    "codex",
+  ];
+}
+
+export const DEFAULT_CODEX_CLI_CANDIDATES = buildDefaultCodexCliCandidates();
 
 function isExecutable(path) {
   if (path === "codex") return true;
@@ -21,9 +38,12 @@ function isExecutable(path) {
   }
 }
 
-export function resolveCodexCli(explicitPath = process.env.CODEX_CLI_PATH) {
+export function resolveCodexCli(
+  explicitPath = process.env.CODEX_CLI_PATH,
+  candidates = DEFAULT_CODEX_CLI_CANDIDATES,
+) {
   if (explicitPath) return explicitPath;
-  return DEFAULT_CLI_CANDIDATES.find(isExecutable) ?? "codex";
+  return candidates.find(isExecutable) ?? "codex";
 }
 
 export class AppServerClient extends EventEmitter {
@@ -77,7 +97,7 @@ export class AppServerClient extends EventEmitter {
       clientInfo: {
         name: "codex-conversation-board",
         title: "Codex Conversation Board",
-        version: "0.8.3",
+        version: "0.8.4",
       },
       capabilities: {
         experimentalApi: true,

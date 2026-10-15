@@ -84,7 +84,7 @@ export class McpProcessClient {
       await this.request("initialize", {
         protocolVersion: "2025-03-26",
         capabilities: {},
-        clientInfo: { name: "codex-conversation-board-web", version: "0.8.3" },
+        clientInfo: { name: "codex-conversation-board-web", version: "0.8.4" },
       });
     })();
     return this.startPromise;

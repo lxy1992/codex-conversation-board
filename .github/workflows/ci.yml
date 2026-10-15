@@ -31,7 +31,9 @@ jobs:
       - name: Validate source and native app
         run: npm run check
       - name: Run tests
-        run: npm test
+        # Browser tests share a generated file harness. Running the suite serially in CI
+        # avoids Chromium startup and file-navigation races on constrained macOS runners.
+        run: npm run test:ci
       - name: Build universal macOS package
         if: matrix.node-version == 22
         run: npm run release:macos
