@@ -97,7 +97,7 @@ export class AppServerClient extends EventEmitter {
       clientInfo: {
         name: "codex-conversation-board",
         title: "Codex Conversation Board",
-        version: "0.8.4",
+        version: "0.9.0",
       },
       capabilities: {
         experimentalApi: true,

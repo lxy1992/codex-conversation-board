@@ -16,7 +16,10 @@ test("board UI exposes a per-card status menu and has valid inline JavaScript", 
   assert.match(html, /className = "card-move-button"/);
   assert.match(html, /id="statusMenu"[^>]*role="menu"/);
   assert.match(html, /option\.setAttribute\("role", "menuitem"\)/);
-  assert.match(html, /callTool\("move_thread", \{/);
+  assert.match(html, /className = "card-quick-button"/);
+  assert.match(html, /quick \? "quick_move_thread" : "move_thread"/);
+  assert.match(html, /id="settingsQuickMoveTarget"/);
+  assert.match(html, /quickMoveTarget: settingsQuickMoveTarget\.value \|\| "done"/);
   assert.match(html, /source: state\.source,[\s\S]*threadId: thread\.id,[\s\S]*beforeThreadId/);
   assert.match(html, /function makeLazyDone\(\)/);
   assert.match(html, /includeDone: true/);

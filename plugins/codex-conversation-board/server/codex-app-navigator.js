@@ -6,10 +6,12 @@ import { dirname, resolve } from "node:path";
 import {
   DEFAULT_NATIVE_NAVIGATION_BROKER_PATH,
   requestBrokerNavigation,
+  requestBrokerReadState,
 } from "./native-navigation-broker.js";
 
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const NAVIGATION_TOOL = "navigate_to_codex_page";
+const READ_STATE_TOOL = "set_thread_read_state";
 const DEFAULT_PIPE_DIRECTORY = resolve(tmpdir(), "codex-browser-use");
 const DEFAULT_CODEX_HOME = process.env.CODEX_HOME || resolve(homedir(), ".codex");
 const DEFAULT_CATALOG_PATH = resolve(DEFAULT_CODEX_HOME, "sqlite/codex-dev.db");
@@ -331,6 +333,38 @@ export class CodexAppNavigator {
         navigation: result.navigation || "codex-app",
       };
     }
+    await this.#callNativeTool(
+      NAVIGATION_TOOL,
+      { threadId: targetThreadId },
+      { metadata, requestId, failureMessage: "无法在 Codex 中打开这个 ChatGPT 对话" },
+    );
+    return { navigated: true, navigation: "codex-app" };
+  }
+
+  async setThreadReadState(targetThreadId, read = true, { metadata = {}, requestId = randomUUID() } = {}) {
+    if (this.useBroker) {
+      const result = await requestBrokerReadState({
+        socketPath: this.brokerPath,
+        threadId: targetThreadId,
+        read,
+        requestId,
+        timeoutMs: this.requestTimeoutMs + 2_000,
+      });
+      return {
+        readUpdated: result.readUpdated === true,
+        read: result.read !== false,
+        readState: result.readState || "codex-app",
+      };
+    }
+    await this.#callNativeTool(
+      READ_STATE_TOOL,
+      { threadId: targetThreadId, read, source: "codex" },
+      { metadata, requestId, failureMessage: "无法在 Codex 中更新已读状态" },
+    );
+    return { readUpdated: true, read, readState: "codex-app" };
+  }
+
+  async #callNativeTool(toolName, args, { metadata, requestId, failureMessage }) {
     const interactionThreadId = await this.#interactionThread(metadata);
     if (!interactionThreadId) throw new Error("找不到可用于原生跳转的 Codex 任务");
     const candidates = await this.#candidatePipePaths();
@@ -346,28 +380,28 @@ export class CodexAppNavigator {
         const listed = await client.request("tools/list", { threadStartKind: "all" }, {
           timeoutMs: Math.min(this.requestTimeoutMs, 2_500),
         });
-        const tool = listed?.tools?.find((item) => item?.name === NAVIGATION_TOOL);
-        if (!tool?.namespace) throw new Error("该通道没有 Codex 对话导航能力");
+        const tool = listed?.tools?.find((item) => item?.name === toolName);
+        if (!tool?.namespace) throw new Error(`该通道没有 ${toolName} 能力`);
         const result = await client.request("tools/call", {
-          arguments: { threadId: targetThreadId },
+          arguments: args,
           callId: executorCallId(metadata),
           namespace: tool.namespace,
           threadId: interactionThreadId,
-          tool: NAVIGATION_TOOL,
+          tool: toolName,
           turnId: executorTurnId(metadata, requestId),
         });
-        if (result?.success !== true) throw new Error("Codex 没有接受这次对话跳转");
+        if (result?.success !== true) throw new Error(`Codex 没有接受 ${toolName} 操作`);
         this.pipePath = pipePath;
         rememberPipePath(this.cachePath, pipePath);
-        return { navigated: true, navigation: "codex-app" };
+        return result;
       } catch (error) {
         lastError = error;
         client.close();
         this.clients.delete(pipePath);
       }
     }
-    this.logger.error?.(`Codex 原生导航失败: ${lastError?.message ?? "未知错误"}`);
-    throw new Error("无法在 Codex 中打开这个 ChatGPT 对话");
+    this.logger.error?.(`Codex 原生工具调用失败: ${lastError?.message ?? "未知错误"}`);
+    throw new Error(failureMessage);
   }
 
   async close() {

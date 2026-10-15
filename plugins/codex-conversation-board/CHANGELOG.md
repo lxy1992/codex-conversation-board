@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0 - 2026-10-15
+
+- Add a one-click quick action to every card.
+- Let each source choose which status the quick action moves cards into.
+- Mark Codex conversations as read through Codex's native read-state tool while moving them.
+
 ## 0.8.4 - 2026-10-15
 
 - Discover the Codex CLI in the current ChatGPT desktop bundle layout.
