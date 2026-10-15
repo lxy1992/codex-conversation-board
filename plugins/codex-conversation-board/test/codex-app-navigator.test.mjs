@@ -151,22 +151,24 @@ test("standalone web navigation is relayed through the Codex plugin process", as
 });
 
 test("read-state relay refuses an old broker instead of accidentally navigating", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "codex-board-old-native-broker-"));
-  const socketPath = join(directory, "native-navigation.sock");
   const requests = [];
   const oldBroker = createServer((socket) => {
     socket.setEncoding("utf8");
     socket.once("data", (chunk) => {
       requests.push(JSON.parse(chunk.trim()));
-      socket.end(`${JSON.stringify({ ok: true })}\n`);
+      Promise.resolve().then(() => socket.end(`${JSON.stringify({ ok: true })}\n`));
     });
   });
-  await new Promise((resolveListen) => oldBroker.listen(socketPath, resolveListen));
+  await new Promise((resolveListen) => oldBroker.listen(0, "127.0.0.1", resolveListen));
+  const brokerPort = oldBroker.address().port;
   try {
-    await assert.rejects(
-      requestBrokerReadState({ socketPath, threadId: CHAT_THREAD_ID, timeoutMs: 1_000 }),
-      /重启 Codex/,
-    );
+    let rejection;
+    try {
+      await requestBrokerReadState({ socketPath: brokerPort, threadId: CHAT_THREAD_ID, timeoutMs: 1_000 });
+    } catch (error) {
+      rejection = error;
+    }
+    assert.match(rejection?.message || "", /重启 Codex/);
     assert.deepEqual(requests, [{ health: true }]);
   } finally {
     await new Promise((resolveClose) => oldBroker.close(resolveClose));
