@@ -6,11 +6,14 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const staleWidgetMode = process.env.CODEX_BOARD_STALE_WIDGET === "1";
 const legacyToolMode = process.env.CODEX_BOARD_LEGACY_TOOL === "1";
 const todayDoneMode = process.env.CODEX_BOARD_TODAY_DONE === "1";
-const outputDirectory = staleWidgetMode
-  ? "/private/tmp/codex-board-stale-widget-harness"
-  : todayDoneMode
-    ? "/private/tmp/codex-board-today-done-harness"
-    : "/private/tmp/codex-board-ui-harness";
+const tallLaneMode = process.env.CODEX_BOARD_TALL_LANE === "1";
+const outputDirectory = tallLaneMode
+  ? "/private/tmp/codex-board-tall-lane-harness"
+  : staleWidgetMode
+    ? "/private/tmp/codex-board-stale-widget-harness"
+    : todayDoneMode
+      ? "/private/tmp/codex-board-today-done-harness"
+      : "/private/tmp/codex-board-ui-harness";
 const columns = [
   ["inbox", "收件箱", "刚出现、尚未分类"],
   ["todo", "待处理", "已经明确，等待开始"],
@@ -69,6 +72,24 @@ const threads = titles.map((title, index) => {
     completedToday: column.id === "done",
   };
 });
+if (tallLaneMode) {
+  const todoProject = projects[1];
+  for (let index = 0; index < 12; index += 1) {
+    threads.push({
+      id: `${String(index + 101).padStart(8, "0")}-1111-4111-8111-111111111111`,
+      title: `滚动位置回归卡片 ${index + 1}`,
+      project: { id: todoProject.id, name: todoProject.name },
+      runtime: { state: "unknown", label: "未加载" },
+      updatedAt: Date.now() - (index + 20) * 32 * 60 * 1000,
+      branch: null,
+      openUrl: `codex://threads/tall-lane-${index + 1}`,
+      activity: { state: "idle", label: "", unread: false, startedAt: null, completedAt: null },
+      boardStatus: "todo",
+      boardPosition: index + 3,
+      completedToday: false,
+    });
+  }
+}
 const firstDoneId = threads.find((thread) => thread.boardStatus === "done")?.id;
 const allFixtureThreads = todayDoneMode
   ? threads.map((thread) => thread.boardStatus === "done" && thread.id !== firstDoneId

@@ -1227,7 +1227,7 @@
             mcpUiConnection = postMessageRequest(
               "ui/initialize",
               {
-                appInfo: { name: "codex-conversation-board", version: "0.9.0" },
+                appInfo: { name: "codex-conversation-board", version: "0.9.1" },
                 appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] },
                 protocolVersion: "2026-01-26",
               },
@@ -2044,6 +2044,14 @@
           // 后台快照可能恰好在用户展开“移动到…”时返回。记住菜单所属卡片，
           // 重绘后重新挂到新卡片上，避免按钮从 DOM 中被替换后点击失效。
           const menuThreadId = state.menuThreadId;
+          // 同一来源的状态变化会重建泳道 DOM。在替换节点前记住每条泳道的
+          // 垂直位置，重绘后按新内容高度自动截断并恢复，避免处理一张卡片就跳回顶部。
+          const laneScrollPositions = board.dataset.source === state.source
+            ? new Map([...board.querySelectorAll(".cards")].map((cards) => [
+              cards.dataset.status,
+              cards.scrollTop,
+            ]))
+            : new Map();
           closeStatusMenu();
           const visible = filteredThreads();
           const hasFilters = Boolean(state.projectId || state.query.trim());
@@ -2057,6 +2065,7 @@
           unreadCount.textContent = String(visible.filter((thread) => thread.activity?.state === "unread").length);
           updateSourceHealth();
           board.replaceChildren();
+          board.dataset.source = state.source;
           const columnCount = Math.max(1, state.columns.length);
           board.style.setProperty("--column-count", String(columnCount));
           board.style.minWidth = `${columnCount * 264 + Math.max(0, columnCount - 1) * 10}px`;
@@ -2111,6 +2120,12 @@
 
             section.append(header, cards);
             board.append(section);
+          }
+
+          for (const [status, scrollTop] of laneScrollPositions) {
+            const cards = [...board.querySelectorAll(".cards")]
+              .find((item) => item.dataset.status === status);
+            if (cards) cards.scrollTop = scrollTop;
           }
 
           if (menuThreadId) {
