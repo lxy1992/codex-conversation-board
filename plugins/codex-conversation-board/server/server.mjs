@@ -29,7 +29,7 @@ import { ThreadActivityTracker } from "./thread-activity.js";
 import { ThreadService } from "./thread-service.js";
 import { isSameLocalDay, localDateKey, startOfLocalDayMs } from "./time.js";
 
-const SERVER_VERSION = "0.8.3";
+const SERVER_VERSION = "0.8.4";
 const ACTIVITY_SOURCE_VERSION = SNAPSHOT_ACTIVITY_SOURCE_VERSION;
 const UI_URI = "ui://codex-conversation-board/board.html";
 const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
