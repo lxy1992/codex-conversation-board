@@ -4,7 +4,6 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createInterface } from "node:readline";
 import { AppServerClient } from "./app-server-client.js";
 import { BoardStore } from "./board-store.js";
 import { ChatGptThreadService } from "./chatgpt-thread-service.js";
@@ -12,6 +11,7 @@ import { ClaudeThreadService, claudeOpenUrl } from "./claude-thread-service.js";
 import { CodexAppNavigator } from "./codex-app-navigator.js";
 import { CodexThreadMetadataService } from "./codex-thread-metadata.js";
 import { ExternalUrlOpener } from "./external-url-opener.js";
+import { readJsonLines } from "./jsonl-reader.js";
 import { NativeNavigationBroker } from "./native-navigation-broker.js";
 import {
   BOARD_COLUMNS,
@@ -29,7 +29,7 @@ import { ThreadActivityTracker } from "./thread-activity.js";
 import { ThreadService } from "./thread-service.js";
 import { isSameLocalDay, localDateKey, startOfLocalDayMs } from "./time.js";
 
-const SERVER_VERSION = "0.8.2";
+const SERVER_VERSION = "0.8.3";
 const ACTIVITY_SOURCE_VERSION = SNAPSHOT_ACTIVITY_SOURCE_VERSION;
 const UI_URI = "ui://codex-conversation-board/board.html";
 const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -893,8 +893,7 @@ function writeMessage(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
-const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
-input.on("line", async (line) => {
+readJsonLines(process.stdin, async (line) => {
   if (!line.trim()) return;
   let message;
   try {

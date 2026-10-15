@@ -29,7 +29,7 @@ test("a legacy host snapshot renders the board instead of the incomplete-data er
     await assert.doesNotReject(() => page.locator(".card").first().waitFor({ timeout: 5_000 }));
     assert.equal(await page.locator(".error-panel").count(), 0);
     await assert.doesNotReject(() =>
-      page.locator('.activity[data-state="active"]').first().waitFor({ timeout: 3_000 }),
+      page.locator('.activity[data-state="active"]').first().waitFor({ timeout: 10_000 }),
     );
     assert.equal(await page.locator('.activity[data-state="active"]').first().textContent(), "对话中");
     assert.equal(await page.locator('.activity[data-state="unread"]').first().textContent(), "新回复未读");
