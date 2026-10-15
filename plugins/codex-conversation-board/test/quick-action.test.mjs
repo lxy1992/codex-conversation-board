@@ -9,6 +9,7 @@ import { loadBrowserRuntime } from "./browser-test-runtime.mjs";
 const execFileAsync = promisify(execFile);
 const ROOT = new URL("../", import.meta.url);
 const HARNESS_PATH = "/private/tmp/codex-board-ui-harness/index.html";
+const TALL_LANE_HARNESS_PATH = "/private/tmp/codex-board-tall-lane-harness/index.html";
 
 test("card quick action moves to the configured target and clears unread state", async (t) => {
   await execFileAsync(process.execPath, [new URL("test/build-ui-harness.mjs", ROOT).pathname], {
@@ -60,6 +61,49 @@ test("card quick action moves to the configured target and clears unread state",
       ))
     ), inboxId);
     assert.equal(await page.locator(`.cards[data-status="review"] .card[data-thread-id="${inboxId}"]`).count(), 1);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("card quick action keeps the source lane at the user's scroll position", async (t) => {
+  await execFileAsync(process.execPath, [new URL("test/build-ui-harness.mjs", ROOT).pathname], {
+    cwd: ROOT.pathname,
+    env: { ...process.env, CODEX_BOARD_TALL_LANE: "1" },
+  });
+  const runtime = await loadBrowserRuntime(t);
+  if (!runtime) return;
+  const browser = await runtime.chromium.launch(runtime.launchOptions);
+  try {
+    const page = await browser.newPage({ viewport: { width: 1188, height: 600 } });
+    await page.goto(pathToFileURL(TALL_LANE_HARNESS_PATH).href);
+
+    const todoLane = page.locator('.cards[data-status="todo"]');
+    await todoLane.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    const before = await todoLane.evaluate((element) => ({
+      top: element.scrollTop,
+      max: element.scrollHeight - element.clientHeight,
+    }));
+    assert.ok(before.max > 0, "fixture must make the source lane scrollable");
+
+    const bottomCard = todoLane.locator(".card").last();
+    const threadId = await bottomCard.getAttribute("data-thread-id");
+    await bottomCard.locator(".card-quick-button").click();
+    await page.waitForFunction((id) => (
+      window.__CODEX_BOARD_CALLS__.some((call) => (
+        call.name === "quick_move_thread" && call.args.threadId === id
+      ))
+    ), threadId);
+
+    const after = await todoLane.evaluate((element) => ({
+      top: element.scrollTop,
+      max: element.scrollHeight - element.clientHeight,
+    }));
+    assert.ok(after.max > 0, "fixture must remain scrollable after moving one card");
+    assert.ok(
+      after.top >= Math.min(before.top, after.max) - 2,
+      `lane jumped from ${before.top}px to ${after.top}px instead of preserving its position`,
+    );
   } finally {
     await browser.close();
   }

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.1 - 2026-10-15
+
+- Preserve each lane's scroll position when cards move or the board redraws.
+
 ## 0.9.0 - 2026-10-15
 
 - Add a one-click quick action to every card.
